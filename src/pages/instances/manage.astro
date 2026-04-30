@@ -1,0 +1,279 @@
+---
+export const prerender = false;
+import Layout from "../../layouts/Layout.astro";
+import { prisma } from "../../lib/prisma";
+
+const user = Astro.locals.user;
+
+if (!user) {
+    return Astro.redirect("/auth/login?redirect=/instances/manage");
+}
+
+const userInstances = await prisma.instance.findMany({
+    where: { addedByUserId: user.id },
+    orderBy: { createdAt: "desc" },
+});
+---
+
+<Layout title="Manage Instances - Furry Fediverse">
+    <main class="p-2 md:p-5 lg:px-60 2xl:px-80">
+        <div class="flex flex-col">
+            <div
+                class="flex items-center gap-2 text-sm bg-[#31dcb2] px-4 py-2 rounded-md"
+            >
+                <a href="/" class="text-[#12384b] font-semibold">Home</a>
+                <svg
+                    class="w-4 h-4 text-[#12384b]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5l7 7-7 7"></path>
+                </svg>
+                <a href="/instances" class="text-[#12384b] font-semibold"
+                    >Instances</a
+                >
+                <svg
+                    class="w-4 h-4 text-[#12384b]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5l7 7-7 7"></path>
+                </svg>
+                <span class="text-[#12384b] font-semibold">Manage</span>
+            </div>
+
+            <div class="py-6 space-y-6">
+                <div
+                    class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+                >
+                    <div>
+                        <h1 class="font-bold text-2xl text-white">
+                            Manage Your Instances
+                        </h1>
+                        <p class="text-white/50 text-sm mt-1">
+                            {
+                                userInstances.length === 1
+                                    ? "You have added 1 instance"
+                                    : `You have added ${userInstances.length} instances`
+                            }
+                        </p>
+                    </div>
+                    <a
+                        href="/instances/add"
+                        class="shrink-0 bg-[#31dcb2] text-[#12384b] font-semibold px-4 py-2 rounded-lg hover:bg-[#28c4a0] transition-colors text-center no-underline text-sm"
+                    >
+                        Add New Instance
+                    </a>
+                </div>
+
+                {
+                    userInstances.length === 0 ? (
+                        <div class="p-12 rounded-md bg-[#0D3559] border border-white/10 text-center">
+                            <svg
+                                class="w-16 h-16 text-white/20 mx-auto mb-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="1.5"
+                                    d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
+                                />
+                            </svg>
+                            <h3 class="text-xl font-semibold text-white mb-2">
+                                No instances added yet
+                            </h3>
+                            <p class="text-white/50 mb-6">
+                                Start by adding your first fediverse instance to
+                                the directory.
+                            </p>
+                            <a
+                                href="/instances/add"
+                                class="bg-[#31dcb2] text-[#12384b] font-semibold px-6 py-2 rounded-lg hover:bg-[#28c4a0] transition-colors no-underline inline-block"
+                            >
+                                Add Your First Instance
+                            </a>
+                        </div>
+                    ) : (
+                        <div class="space-y-4">
+                            {userInstances.map((instance) => {
+                                const typeColors = {
+                                    mastodon:
+                                        "bg-purple-500/20 text-purple-300 border-purple-500/50",
+                                    misskey:
+                                        "bg-blue-500/20 text-blue-300 border-blue-500/50",
+                                    funkwhale:
+                                        "bg-green-500/20 text-green-300 border-green-500/50",
+                                    pixelfed:
+                                        "bg-pink-500/20 text-pink-300 border-pink-500/50",
+                                };
+                                const typeColor =
+                                    typeColors[
+                                        instance.instanceType as keyof typeof typeColors
+                                    ] ||
+                                    "bg-white/10 text-white/70 border-white/30";
+                                return (
+                                    <div class="rounded-md bg-[#0D3559] border border-white/10 overflow-hidden flex">
+                                        {instance.thumbnailPath ||
+                                        instance.thumbnail ? (
+                                            <div class="w-80 shrink-0 aspect-40/21 relative overflow-hidden">
+                                                <img
+                                                    src={
+                                                        instance.thumbnailPath ||
+                                                        instance.thumbnail
+                                                    }
+                                                    alt={instance.title}
+                                                    class="absolute inset-0 w-full h-full object-cover"
+                                                    onerror="this.parentElement.style.display='none'"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div class="w-80 shrink-0 aspect-40/21 bg-linear-to-br from-[#1a4a70] to-[#0D3559] flex items-center justify-center">
+                                                <svg
+                                                    class="w-12 h-12 text-white/10"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                        stroke-width="1.5"
+                                                        d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
+                                                    />
+                                                </svg>
+                                            </div>
+                                        )}
+                                        <div class="flex-1 min-w-0 p-4">
+                                            <div class="flex items-center gap-2 mb-2 flex-wrap">
+                                                <h3 class="font-bold text-white text-lg truncate">
+                                                    {instance.title}
+                                                </h3>
+                                                <span
+                                                    class={`text-xs px-2 py-1 rounded border ${typeColor}`}
+                                                >
+                                                    {instance.instanceType}
+                                                </span>
+                                                {instance.nsfwAllowed && (
+                                                    <span class="text-xs px-2 py-1 rounded bg-orange-500/20 text-orange-300 border border-orange-500/50">
+                                                        NSFW
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p class="text-sm text-[#31dcb2] mb-2">
+                                                {instance.domain}
+                                            </p>
+                                            {instance.description && (
+                                                <p class="text-sm text-white/60 line-clamp-1 mb-3">
+                                                    {instance.description}
+                                                </p>
+                                            )}
+                                            <div class="flex gap-4 text-xs text-white/50 flex-wrap mb-3">
+                                                <span>
+                                                    👥{" "}
+                                                    {instance.userCount?.toLocaleString() ||
+                                                        0}{" "}
+                                                    users
+                                                </span>
+                                                {instance.country && (
+                                                    <span>
+                                                        📍 {instance.country}
+                                                    </span>
+                                                )}
+                                                {instance.primaryLanguage && (
+                                                    <span>
+                                                        🌐{" "}
+                                                        {
+                                                            instance.primaryLanguage
+                                                        }
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div class="flex gap-2 pt-3 border-t border-white/10">
+                                                <a
+                                                    href={`/instances/edit/${instance.id}`}
+                                                    class="text-xs px-3 py-1.5 rounded bg-white/5 border border-white/20 text-white/80 hover:bg-white/10 transition-colors no-underline"
+                                                >
+                                                    Edit
+                                                </a>
+                                                <button
+                                                    class="delete-instance-btn text-xs px-3 py-1.5 rounded bg-red-500/10 border border-red-500/30 text-red-300 hover:bg-red-500/20 transition-colors"
+                                                    data-instance-id={
+                                                        instance.id
+                                                    }
+                                                    data-instance-title={
+                                                        instance.title
+                                                    }
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )
+                }
+            </div>
+        </div>
+    </main>
+</Layout>
+
+<script is:inline>
+    document.addEventListener("DOMContentLoaded", function () {
+        document
+            .querySelectorAll(".delete-instance-btn")
+            .forEach(function (btn) {
+                btn.addEventListener("click", function () {
+                    var instanceId = this.getAttribute("data-instance-id");
+                    var instanceTitle = this.getAttribute(
+                        "data-instance-title",
+                    );
+
+                    if (
+                        confirm(
+                            'Are you sure you want to delete "' +
+                                instanceTitle +
+                                '"? This action cannot be undone.',
+                        )
+                    ) {
+                        fetch("/api/instances/" + instanceId, {
+                            method: "DELETE",
+                        })
+                            .then(function (response) {
+                                return response.json();
+                            })
+                            .then(function (data) {
+                                if (data.success) {
+                                    window.location.reload();
+                                } else {
+                                    alert(
+                                        "Failed to delete instance: " +
+                                            (data.error || "Unknown error"),
+                                    );
+                                }
+                            })
+                            .catch(function (error) {
+                                alert(
+                                    "Failed to delete instance: " +
+                                        error.message,
+                                );
+                            });
+                    }
+                });
+            });
+    });
+</script>

@@ -1,0 +1,443 @@
+---
+export const prerender = false;
+import Layout from "../../../layouts/Layout.astro";
+
+const user = Astro.locals.user;
+
+if (!user) {
+    return Astro.redirect("/auth/login?redirect=/instances/manage");
+}
+---
+
+<Layout title="Edit Instance - Furry Fediverse">
+    <main class="p-2 md:p-5 lg:px-60 2xl:px-80">
+        <div class="flex flex-col">
+            <div
+                class="flex items-center gap-2 text-sm bg-[#31dcb2] px-4 py-2 rounded-md"
+            >
+                <a href="/" class="text-[#12384b] font-semibold">Home</a>
+                <svg
+                    class="w-4 h-4 text-[#12384b]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5l7 7-7 7"></path>
+                </svg>
+                <a href="/instances" class="text-[#12384b] font-semibold"
+                    >Instances</a
+                >
+                <svg
+                    class="w-4 h-4 text-[#12384b]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5l7 7-7 7"></path>
+                </svg>
+                <a href="/instances/manage" class="text-[#12384b] font-semibold"
+                    >Manage</a
+                >
+                <svg
+                    class="w-4 h-4 text-[#12384b]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5l7 7-7 7"></path>
+                </svg>
+                <span class="text-[#12384b] font-semibold">Edit</span>
+            </div>
+
+            <div class="py-6 space-y-8">
+                <div
+                    id="loading-state"
+                    class="p-12 rounded-md bg-[#0D3559] border border-white/10 text-center"
+                >
+                    <div class="animate-pulse space-y-4">
+                        <div class="h-8 bg-white/10 rounded w-48 mx-auto"></div>
+                        <div
+                            class="h-12 bg-white/10 rounded w-full max-w-md mx-auto"
+                        >
+                        </div>
+                        <div
+                            class="h-12 bg-white/10 rounded w-full max-w-md mx-auto"
+                        >
+                        </div>
+                        <div
+                            class="h-12 bg-white/10 rounded w-full max-w-md mx-auto"
+                        >
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    id="not-found-state"
+                    class="hidden p-12 rounded-md bg-[#0D3559] border border-white/10 text-center"
+                >
+                    <h2 class="font-bold text-xl text-white mb-4">
+                        Instance Not Found
+                    </h2>
+                    <p class="text-white/50 mb-6">
+                        The instance you're looking for doesn't exist or you
+                        don't have permission to edit it.
+                    </p>
+                    <a
+                        href="/instances/manage"
+                        class="bg-[#31dcb2] text-[#12384b] font-semibold px-6 py-2 rounded-lg hover:bg-[#28c4a0] transition-colors no-underline inline-block"
+                    >
+                        Back to Manage
+                    </a>
+                </div>
+
+                <div
+                    id="form-container"
+                    class="hidden p-6 rounded-md bg-[#0D3559] border border-white/10"
+                >
+                    <h2 class="font-bold text-xl text-white mb-4">
+                        Edit Instance
+                    </h2>
+
+                    <form id="edit-instance-form" class="space-y-5">
+                        <div
+                            id="form-error"
+                            class="hidden bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg text-sm"
+                        >
+                        </div>
+                        <div
+                            id="form-success"
+                            class="hidden bg-green-500/20 border border-green-500/50 text-green-300 px-4 py-3 rounded-lg text-sm"
+                        >
+                        </div>
+
+                        <div>
+                            <h3 class="font-semibold text-white mb-3">
+                                Instance Details
+                            </h3>
+                        </div>
+
+                        <div>
+                            <label
+                                for="instance-domain"
+                                class="block text-sm font-medium text-white/80 mb-2"
+                            >
+                                Instance Domain
+                            </label>
+                            <input
+                                type="text"
+                                id="instance-domain"
+                                disabled
+                                class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white/40 cursor-not-allowed"
+                            />
+                            <p class="text-white/50 text-xs mt-1">
+                                Domain cannot be changed after creation
+                            </p>
+                        </div>
+
+                        <div>
+                            <label
+                                for="instance-type"
+                                class="block text-sm font-medium text-white/80 mb-2"
+                            >
+                                Instance Type
+                            </label>
+                            <input
+                                type="text"
+                                id="instance-type"
+                                disabled
+                                class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white/40 cursor-not-allowed"
+                            />
+                            <p class="text-white/50 text-xs mt-1">
+                                Type cannot be changed after creation
+                            </p>
+                        </div>
+
+                        <div>
+                            <label
+                                for="instance-title"
+                                class="block text-sm font-medium text-white/80 mb-2"
+                            >
+                                Instance Title
+                            </label>
+                            <input
+                                type="text"
+                                id="instance-title"
+                                name="title"
+                                required
+                                class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                for="instance-description"
+                                class="block text-sm font-medium text-white/80 mb-2"
+                            >
+                                Description
+                            </label>
+                            <textarea
+                                id="instance-description"
+                                name="description"
+                                rows="3"
+                                class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors resize-none"
+                            ></textarea>
+                        </div>
+
+                        <div class="pt-4 border-t border-white/10">
+                            <h3 class="font-semibold text-white mb-3">
+                                Community Information
+                            </h3>
+                        </div>
+
+                        <div>
+                            <label
+                                for="instance-country"
+                                class="block text-sm font-medium text-white/80 mb-2"
+                            >
+                                Country of Operation (Optional)
+                            </label>
+                            <input
+                                type="text"
+                                id="instance-country"
+                                name="country"
+                                class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+                                placeholder="United States"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                for="instance-language"
+                                class="block text-sm font-medium text-white/80 mb-2"
+                            >
+                                Primary Language (Optional)
+                            </label>
+                            <input
+                                type="text"
+                                id="instance-language"
+                                name="primaryLanguage"
+                                class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+                                placeholder="English"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                for="instance-donation"
+                                class="block text-sm font-medium text-white/80 mb-2"
+                            >
+                                Donation Link (Optional)
+                            </label>
+                            <input
+                                type="url"
+                                id="instance-donation"
+                                name="donationLink"
+                                class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+                                placeholder="https://ko-fi.com/yourinstance"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                for="instance-invite"
+                                class="block text-sm font-medium text-white/80 mb-2"
+                            >
+                                Custom Invite Link (Optional)
+                            </label>
+                            <input
+                                type="url"
+                                id="instance-invite"
+                                name="customInviteLink"
+                                class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+                                placeholder="https://mastodon.social/invite/abc123"
+                            />
+                        </div>
+
+                        <div class="pt-4 border-t border-white/10">
+                            <h3 class="font-semibold text-white mb-3">
+                                Content Policy
+                            </h3>
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <input
+                                type="checkbox"
+                                id="instance-nsfw"
+                                name="nsfwAllowed"
+                                class="w-5 h-5 rounded border-white/20 bg-white/5 text-[#31dcb2] focus:ring-[#31dcb2] focus:ring-offset-0"
+                            />
+                            <label
+                                for="instance-nsfw"
+                                class="text-sm font-medium text-white/80 cursor-pointer"
+                            >
+                                NSFW content allowed
+                            </label>
+                        </div>
+
+                        <button
+                            type="submit"
+                            id="submit-btn"
+                            class="w-full bg-[#31dcb2] text-[#12384b] font-semibold px-6 py-3 rounded-lg hover:bg-[#28c4a0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <span id="btn-text">Save Changes</span>
+                            <span id="btn-loading" class="hidden">
+                                <svg
+                                    class="animate-spin h-5 w-5 inline mr-2"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <circle
+                                        class="opacity-25"
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        stroke-width="4"></circle>
+                                    <path
+                                        class="opacity-75"
+                                        fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                    ></path>
+                                </svg>
+                                Saving...
+                            </span>
+                        </button>
+                    </form>
+
+                    <div class="mt-6 text-center">
+                        <a
+                            href="/instances/manage"
+                            class="text-[#31dcb2] hover:text-[#28c4a0] no-underline font-medium text-sm"
+                        >
+                            ← Back to manage instances
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</Layout>
+
+<script is:inline>
+    document.addEventListener("DOMContentLoaded", function () {
+        var pathParts = window.location.pathname.split("/");
+        var instanceId = pathParts[pathParts.length - 1];
+
+        var loadingState = document.getElementById("loading-state");
+        var notFoundState = document.getElementById("not-found-state");
+        var formContainer = document.getElementById("form-container");
+        var form = document.getElementById("edit-instance-form");
+        var errorMessage = document.getElementById("form-error");
+        var successMessage = document.getElementById("form-success");
+        var submitBtn = document.getElementById("submit-btn");
+        var btnText = document.getElementById("btn-text");
+        var btnLoading = document.getElementById("btn-loading");
+
+        fetch("/api/instances/" + instanceId)
+            .then(function (response) {
+                return response.json();
+            })
+            .then(function (data) {
+                if (data.instance) {
+                    var inst = data.instance;
+                    document.getElementById("instance-domain").value =
+                        inst.domain;
+                    document.getElementById("instance-type").value =
+                        inst.instanceType;
+                    document.getElementById("instance-title").value =
+                        inst.title;
+                    document.getElementById("instance-description").value =
+                        inst.description || "";
+                    document.getElementById("instance-country").value =
+                        inst.country || "";
+                    document.getElementById("instance-language").value =
+                        inst.primaryLanguage || "";
+                    document.getElementById("instance-donation").value =
+                        inst.donationLink || "";
+                    document.getElementById("instance-invite").value =
+                        inst.customInviteLink || "";
+                    document.getElementById("instance-nsfw").checked =
+                        inst.nsfwAllowed;
+
+                    loadingState.classList.add("hidden");
+                    formContainer.classList.remove("hidden");
+                } else {
+                    loadingState.classList.add("hidden");
+                    notFoundState.classList.remove("hidden");
+                }
+            })
+            .catch(function () {
+                loadingState.classList.add("hidden");
+                notFoundState.classList.remove("hidden");
+            });
+
+        form?.addEventListener("submit", function (e) {
+            e.preventDefault();
+
+            var formData = {
+                title: document.getElementById("instance-title").value,
+                description:
+                    document.getElementById("instance-description").value ||
+                    null,
+                country:
+                    document.getElementById("instance-country").value || null,
+                primaryLanguage:
+                    document.getElementById("instance-language").value || null,
+                donationLink:
+                    document.getElementById("instance-donation").value || null,
+                customInviteLink:
+                    document.getElementById("instance-invite").value || null,
+                nsfwAllowed: document.getElementById("instance-nsfw").checked,
+            };
+
+            submitBtn.disabled = true;
+            btnText.classList.add("hidden");
+            btnLoading.classList.remove("hidden");
+            errorMessage.classList.add("hidden");
+            successMessage.classList.add("hidden");
+
+            fetch("/api/instances/" + instanceId, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(formData),
+            })
+                .then(function (response) {
+                    return response.json();
+                })
+                .then(function (data) {
+                    if (data.success) {
+                        successMessage.textContent =
+                            "Instance updated successfully!";
+                        successMessage.classList.remove("hidden");
+                    } else {
+                        throw new Error(
+                            data.error || "Failed to update instance",
+                        );
+                    }
+                })
+                .catch(function (error) {
+                    errorMessage.textContent =
+                        error.message || "An unexpected error occurred";
+                    errorMessage.classList.remove("hidden");
+                })
+                .finally(function () {
+                    submitBtn.disabled = false;
+                    btnText.classList.remove("hidden");
+                    btnLoading.classList.add("hidden");
+                });
+        });
+    });
+</script>

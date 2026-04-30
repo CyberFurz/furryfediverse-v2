@@ -1,0 +1,28 @@
+---
+export const prerender = false;
+import { auth } from "../../lib/auth";
+
+const session = await auth.api
+    .getSession({
+        headers: Astro.request.headers,
+    })
+    .catch(() => null);
+
+if (!session) {
+    return Astro.redirect("/auth/login");
+}
+
+const signOutUrl = new URL("/api/auth/sign-out", Astro.url);
+const signOutRequest = new Request(signOutUrl, {
+    method: "POST",
+    headers: Astro.request.headers,
+});
+
+const response = await auth.handler(signOutRequest);
+const setCookie = response.headers.get("Set-Cookie");
+if (setCookie) {
+    Astro.response.headers.set("Set-Cookie", setCookie);
+}
+
+return Astro.redirect("/");
+---

@@ -1,0 +1,31 @@
+---
+import Navbar from "./Navbar.astro";
+import Footer from "./Footer.astro";
+import "../styles/global.css";
+export interface Props {
+    title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <script is:inline src="/fontawesome-free/js/all.min.js"></script>
+        <meta name="generator" content={Astro.generator} />
+        <title>{title}</title>
+    </head>
+    <body>
+        <div
+            class="flex flex-col justify-between min-h-screen bg-[#0A2B49] text-white"
+        >
+            <div class="flex-none"><Navbar /></div>
+            <div class="grow"><slot /></div>
+            <div class="flex-none"><Footer /></div>
+        </div>
+    </body>
+</html>

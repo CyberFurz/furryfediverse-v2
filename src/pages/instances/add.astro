@@ -1,0 +1,428 @@
+---
+export const prerender = false;
+import Layout from "../../layouts/Layout.astro";
+
+const user = Astro.locals.user;
+
+if (!user) {
+    return Astro.redirect("/auth/login?redirect=/instances/add");
+}
+---
+
+<Layout title="Add Instance - Furry Fediverse">
+    <main class="p-2 md:p-5 lg:px-60 2xl:px-80">
+        <div class="flex flex-col">
+            <div
+                class="flex items-center gap-2 text-sm bg-[#31dcb2] px-4 py-2 rounded-md"
+            >
+                <a href="/" class="text-[#12384b] font-semibold">Home</a>
+                <svg
+                    class="w-4 h-4 text-[#12384b]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5l7 7-7 7"></path>
+                </svg>
+                <a href="/instances" class="text-[#12384b] font-semibold"
+                    >Instances</a
+                >
+                <svg
+                    class="w-4 h-4 text-[#12384b]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5l7 7-7 7"></path>
+                </svg>
+                <span class="text-[#12384b] font-semibold">Add</span>
+            </div>
+
+            <div class="py-6 space-y-8">
+                <div class="p-6 rounded-md bg-[#0D3559] border border-white/10">
+                    <h2 class="font-bold text-xl text-white mb-4">
+                        Add New Instance
+                    </h2>
+
+                    <form id="add-instance-form" class="space-y-5">
+                        <div
+                            id="form-error"
+                            class="hidden bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg text-sm"
+                        >
+                        </div>
+                        <div
+                            id="form-success"
+                            class="hidden bg-green-500/20 border border-green-500/50 text-green-300 px-4 py-3 rounded-lg text-sm"
+                        >
+                        </div>
+
+                        <div>
+                            <h3 class="font-semibold text-white mb-3">Instance Details</h3>
+                        </div>
+
+                        <div>
+                            <label
+                                for="instance-domain"
+                                class="block text-sm font-medium text-white/80 mb-2"
+                            >
+                                Instance Domain
+                            </label>
+                            <input
+                                type="text"
+                                id="instance-domain"
+                                name="domain"
+                                required
+                                class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+                                placeholder="mastodon.social"
+                            />
+                            <p class="text-white/50 text-xs mt-1">
+                                Enter the domain without https:// (e.g.
+                                mastodon.social)
+                            </p>
+                        </div>
+
+                        <div>
+                            <label
+                                for="instance-type"
+                                class="block text-sm font-medium text-white/80 mb-2"
+                            >
+                                Instance Type
+                            </label>
+                            <select
+                                id="instance-type"
+                                name="instanceType"
+                                required
+                                class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors appearance-none"
+                            >
+                                <option value="" class="bg-[#0A2B49]"
+                                    >Select instance type</option
+                                >
+                                <option value="mastodon" class="bg-[#0A2B49]"
+                                    >Mastodon</option
+                                >
+                                <option value="misskey" class="bg-[#0A2B49]"
+                                    >Misskey Compatible</option
+                                >
+                                <option value="funkwhale" class="bg-[#0A2B49]"
+                                    >Funkwhale</option
+                                >
+                                <option value="pixelfed" class="bg-[#0A2B49]"
+                                    >Pixelfed</option
+                                >
+                            </select>
+                        </div>
+
+                        <div id="misskey-admin-field" class="hidden">
+                            <label
+                                for="instance-admin-username"
+                                class="block text-sm font-medium text-white/80 mb-2"
+                            >
+                                Instance Admin Username
+                            </label>
+                            <input
+                                type="text"
+                                id="instance-admin-username"
+                                name="adminUsername"
+                                class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+                                placeholder="admin"
+                            />
+                            <p class="text-white/50 text-xs mt-1">
+                                The username of the admin account on this instance (without @). This is used to send the verification DM.
+                            </p>
+                        </div>
+
+                        <div id="pixelfed-warning" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+                            <div class="flex gap-3">
+                                <svg class="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                <div>
+                                    <p class="text-sm text-amber-300 font-medium">Pixelfed Admin Contact Required</p>
+                                    <p class="text-xs text-amber-300/70 mt-1">
+                                        Please ensure your instance has a contact user configured in your Pixelfed admin settings. Without a valid contact user, we cannot send the verification DM to confirm instance ownership.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pt-4 border-t border-white/10">
+                            <h3 class="font-semibold text-white mb-3">Community Information</h3>
+                        </div>
+
+                        <div>
+                            <label
+                                for="instance-country"
+                                class="block text-sm font-medium text-white/80 mb-2"
+                            >
+                                Country of Operation (Optional)
+                            </label>
+                            <input
+                                type="text"
+                                id="instance-country"
+                                name="country"
+                                class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+                                placeholder="United States"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                for="instance-language"
+                                class="block text-sm font-medium text-white/80 mb-2"
+                            >
+                                Primary Language (Optional)
+                            </label>
+                            <input
+                                type="text"
+                                id="instance-language"
+                                name="primaryLanguage"
+                                class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+                                placeholder="English"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                for="instance-donation"
+                                class="block text-sm font-medium text-white/80 mb-2"
+                            >
+                                Donation Link (Optional)
+                            </label>
+                            <input
+                                type="url"
+                                id="instance-donation"
+                                name="donationLink"
+                                class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+                                placeholder="https://ko-fi.com/yourinstance"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                for="instance-invite"
+                                class="block text-sm font-medium text-white/80 mb-2"
+                            >
+                                Custom Invite Link (Optional)
+                            </label>
+                            <input
+                                type="url"
+                                id="instance-invite"
+                                name="customInviteLink"
+                                class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+                                placeholder="https://mastodon.social/invite/abc123"
+                            />
+                        </div>
+
+                        <div class="pt-4 border-t border-white/10">
+                            <h3 class="font-semibold text-white mb-3">Content Policy</h3>
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <input
+                                type="checkbox"
+                                id="instance-nsfw"
+                                name="nsfwAllowed"
+                                class="w-5 h-5 rounded border-white/20 bg-white/5 text-[#31dcb2] focus:ring-[#31dcb2] focus:ring-offset-0"
+                            />
+                            <label
+                                for="instance-nsfw"
+                                class="text-sm font-medium text-white/80 cursor-pointer"
+                            >
+                                NSFW content allowed
+                            </label>
+                        </div>
+
+                        <div class="pt-4 border-t border-white/10">
+                            <h3 class="font-semibold text-white mb-3">Data Consent</h3>
+                        </div>
+
+                        <div class="bg-white/5 border border-white/10 rounded-lg p-4 space-y-3">
+                            <p class="text-sm text-white/70">
+                                By adding this instance, you consent to our system automatically fetching
+                                public metadata from the instance's API endpoints. This includes basic
+                                information such as instance name, description, user counts, and banner images.
+                                Only publicly accessible data is collected.
+                            </p>
+                            <p class="text-xs text-white/50">
+                                You can read more about how we handle this data in our
+                                <a href="/privacy" class="text-[#31dcb2] hover:underline">Privacy Policy</a>.
+                            </p>
+                        </div>
+
+                        <div class="flex items-start gap-3">
+                            <input
+                                type="checkbox"
+                                id="instance-consent"
+                                name="consentToScrape"
+                                required
+                                class="w-5 h-5 mt-0.5 rounded border-white/20 bg-white/5 text-[#31dcb2] focus:ring-[#31dcb2] focus:ring-offset-0"
+                            />
+                            <label
+                                for="instance-consent"
+                                class="text-sm font-medium text-white/80 cursor-pointer"
+                            >
+                                I confirm I am the instance owner or an authorized admin, and I consent to
+                                metadata being fetched from public API endpoints
+                            </label>
+                        </div>
+
+                        <button
+                            type="submit"
+                            id="submit-btn"
+                            class="w-full bg-[#31dcb2] text-[#12384b] font-semibold px-6 py-3 rounded-lg hover:bg-[#28c4a0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <span id="btn-text">Add Instance</span>
+                            <span id="btn-loading" class="hidden">
+                                <svg
+                                    class="animate-spin h-5 w-5 inline mr-2"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <circle
+                                        class="opacity-25"
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        stroke-width="4"></circle>
+                                    <path
+                                        class="opacity-75"
+                                        fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                    ></path>
+                                </svg>
+                                Fetching instance data...
+                            </span>
+                        </button>
+                    </form>
+
+                    <div class="mt-6 text-center">
+                        <a
+                            href="/instances"
+                            class="text-[#31dcb2] hover:text-[#28c4a0] no-underline font-medium text-sm"
+                        >
+                            ← Back to instance directory
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</Layout>
+
+<script is:inline>
+    document.addEventListener("DOMContentLoaded", function () {
+        const form = document.getElementById("add-instance-form");
+        const errorMessage = document.getElementById("form-error");
+        const successMessage = document.getElementById("form-success");
+        const submitBtn = document.getElementById("submit-btn");
+        const btnText = document.getElementById("btn-text");
+        const btnLoading = document.getElementById("btn-loading");
+        const instanceTypeSelect = document.getElementById("instance-type");
+        const misskeyAdminField = document.getElementById("misskey-admin-field");
+        const pixelfedWarning = document.getElementById("pixelfed-warning");
+        const adminUsernameInput = document.getElementById("instance-admin-username");
+
+        function toggleInstanceTypeFields() {
+            var selectedType = instanceTypeSelect.value;
+            if (selectedType === "misskey") {
+                misskeyAdminField.classList.remove("hidden");
+                pixelfedWarning.classList.add("hidden");
+                adminUsernameInput.setAttribute("required", "required");
+            } else if (selectedType === "pixelfed") {
+                misskeyAdminField.classList.add("hidden");
+                pixelfedWarning.classList.remove("hidden");
+                adminUsernameInput.removeAttribute("required");
+            } else {
+                misskeyAdminField.classList.add("hidden");
+                pixelfedWarning.classList.add("hidden");
+                adminUsernameInput.removeAttribute("required");
+            }
+        }
+
+        instanceTypeSelect.addEventListener("change", toggleInstanceTypeFields);
+        toggleInstanceTypeFields();
+
+        form?.addEventListener("submit", async function (e) {
+            e.preventDefault();
+
+            var domain = document.getElementById("instance-domain").value;
+            var instanceType = document.getElementById("instance-type").value;
+            var adminUsername = document.getElementById("instance-admin-username").value || null;
+            var country = document.getElementById("instance-country").value || null;
+            var primaryLanguage = document.getElementById("instance-language").value || null;
+            var donationLink = document.getElementById("instance-donation").value || null;
+            var customInviteLink = document.getElementById("instance-invite").value || null;
+            var nsfwAllowed = document.getElementById("instance-nsfw").checked;
+
+            if (instanceType === "misskey" && !adminUsername) {
+                errorMessage.textContent = "Admin username is required for Misskey instances";
+                errorMessage.classList.remove("hidden");
+                return;
+            }
+
+            submitBtn.disabled = true;
+            btnText.classList.add("hidden");
+            btnLoading.classList.remove("hidden");
+            errorMessage.classList.add("hidden");
+            successMessage.classList.add("hidden");
+
+            try {
+                var response = await fetch("/api/instances/add", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        domain: domain,
+                        instanceType: instanceType,
+                        adminUsername: adminUsername,
+                        country: country,
+                        primaryLanguage: primaryLanguage,
+                        donationLink: donationLink,
+                        customInviteLink: customInviteLink,
+                        nsfwAllowed: nsfwAllowed,
+                    }),
+                });
+
+                var data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || "Failed to add instance");
+                }
+
+                successMessage.textContent =
+                    data.message || "Successfully added " + data.instance.title + "!";
+                successMessage.classList.remove("hidden");
+
+                document.getElementById("instance-domain").value = "";
+                document.getElementById("instance-type").value = "";
+                document.getElementById("instance-admin-username").value = "";
+                document.getElementById("instance-country").value = "";
+                document.getElementById("instance-language").value = "";
+                document.getElementById("instance-donation").value = "";
+                document.getElementById("instance-invite").value = "";
+                document.getElementById("instance-nsfw").checked = false;
+                toggleInstanceTypeFields();
+            } catch (error) {
+                var message =
+                    error instanceof Error
+                        ? error.message
+                        : "An unexpected error occurred";
+                errorMessage.textContent = message;
+                errorMessage.classList.remove("hidden");
+            } finally {
+                submitBtn.disabled = false;
+                btnText.classList.remove("hidden");
+                btnLoading.classList.add("hidden");
+            }
+        });
+    });
+</script>

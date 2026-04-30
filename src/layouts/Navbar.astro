@@ -1,0 +1,348 @@
+---
+export const prerender = false;
+
+const navLinks = [
+    { href: "/", label: "Home" },
+    { href: "/instances", label: "Instances" },
+    { href: "/learn", label: "Learn" },
+    { href: "/users", label: "User Directory" },
+];
+
+const user = Astro.locals.user;
+const userName = user?.name || "User";
+const userInitial = user?.name?.charAt(0).toUpperCase() || "U";
+---
+
+<div id="navbar-container">
+    <nav class="bg-[#005458] text-[#31dcb2] shadow-lg">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo -->
+                <div class="shrink-0">
+                    <a href="/" class="flex items-center gap-2">
+                        <img
+                            src="/images/FullColor.webp"
+                            class="h-14"
+                            alt="logo"
+                        />
+                        <span class="sr-only">Furry Fediverse</span>
+                    </a>
+                </div>
+
+                <!-- Desktop Navigation -->
+                <ul class="hidden lg:flex items-center space-x-6">
+                    {
+                        navLinks.map((link) => (
+                            <li>
+                                <a
+                                    href={link.href}
+                                    class="text-white no-underline hover:bg-white/10 px-3 py-2 rounded-md transition-colors"
+                                >
+                                    {link.label}
+                                </a>
+                            </li>
+                        ))
+                    }
+                    {
+                        user ? (
+                            <li class="relative">
+                                <button
+                                    id="user-menu-button"
+                                    class="flex items-center gap-2 text-white hover:bg-white/10 px-3 py-2 rounded-md transition-colors h-full"
+                                    aria-expanded="false"
+                                    aria-haspopup="true"
+                                >
+                                    <span class="w-8 h-8 bg-[#31dcb2] rounded-full flex items-center justify-center text-[#12384b] font-bold text-sm shrink-0">
+                                        {userInitial}
+                                    </span>
+                                    <span class="font-medium">{userName}</span>
+                                    <svg
+                                        class="w-4 h-4 transition-transform shrink-0"
+                                        id="dropdown-chevron"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 9l-7 7-7-7"
+                                        />
+                                    </svg>
+                                </button>
+                                <div
+                                    id="user-dropdown"
+                                    class="hidden absolute right-0 top-full mt-2 w-48 bg-[#0D3559] border border-white/20 rounded-lg shadow-xl z-50"
+                                >
+                                    <div class="p-2">
+                                        <a
+                                            href="/auth/dashboard"
+                                            class="flex items-center gap-2 px-3 py-2 text-white hover:bg-white/10 rounded-md transition-colors no-underline"
+                                        >
+                                            <svg
+                                                class="w-4 h-4 shrink-0"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    stroke-width="2"
+                                                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                                                />
+                                            </svg>
+                                            Dashboard
+                                        </a>
+                                        <a
+                                            id="logout-btn"
+                                            href="/auth/logout"
+                                            class="flex items-center gap-2 px-3 py-2 text-red-300 hover:bg-white/10 rounded-md transition-colors no-underline"
+                                        >
+                                            <svg
+                                                class="w-4 h-4 shrink-0"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    stroke-width="2"
+                                                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                                                />
+                                            </svg>
+                                            Log Out
+                                        </a>
+                                    </div>
+                                </div>
+                            </li>
+                        ) : (
+                            <li>
+                                <a
+                                    href="/auth/login"
+                                    class="text-white no-underline hover:bg-white/10 px-3 py-2 rounded-md transition-colors"
+                                >
+                                    Login
+                                </a>
+                            </li>
+                        )
+                    }
+                </ul>
+
+                <!-- Mobile Hamburger Button -->
+                <button
+                    id="mobile-menu-button"
+                    class="lg:hidden p-2 rounded-md hover:bg-white/10 transition-colors"
+                    aria-expanded="false"
+                    aria-label="Toggle navigation"
+                >
+                    <svg
+                        id="menu-icon-open"
+                        class="w-6 h-6"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                    <svg
+                        id="menu-icon-close"
+                        class="w-6 h-6 hidden"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Navigation Drawer -->
+        <div id="mobile-menu" class="lg:hidden hidden">
+            <div
+                class="fixed inset-0 bg-black/50 z-40"
+                id="mobile-menu-overlay"
+            >
+            </div>
+            <div
+                class="fixed top-0 left-0 h-full w-80 bg-[#0D3559] z-50 shadow-xl"
+            >
+                <ul class="p-4 space-y-2">
+                    {
+                        navLinks.map((link) => (
+                            <li>
+                                <a
+                                    href={link.href}
+                                    class="text-white no-underline hover:bg-white/10 block px-4 py-2 rounded-md transition-colors"
+                                >
+                                    {link.label}
+                                </a>
+                            </li>
+                        ))
+                    }
+                    {
+                        user ? (
+                            <>
+                                <li class="border-t border-white/10 pt-3">
+                                    <div class="flex items-center gap-3 px-4 py-3">
+                                        <span class="w-10 h-10 bg-[#31dcb2] rounded-full flex items-center justify-center text-[#12384b] font-bold">
+                                            {userInitial}
+                                        </span>
+                                        <span class="text-white font-medium">
+                                            {userName}
+                                        </span>
+                                    </div>
+                                </li>
+                                <li>
+                                    <a
+                                        href="/auth/dashboard"
+                                        class="items-center gap-2 text-white hover:bg-white/10 block px-4 py-2 rounded-md transition-colors no-underline"
+                                    >
+                                        <svg
+                                            class="w-5 h-5"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="2"
+                                                d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                                            />
+                                        </svg>
+                                        Dashboard
+                                    </a>
+                                </li>
+                                <li>
+                                    <a
+                                        href="/auth/logout"
+                                        id="mobile-logout-btn"
+                                        class="items-center gap-2 text-red-300 hover:bg-white/10 block px-4 py-2 rounded-md transition-colors no-underline"
+                                    >
+                                        <svg
+                                            class="w-5 h-5 shrink-0"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="2"
+                                                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                                            />
+                                        </svg>
+                                        Log Out
+                                    </a>
+                                </li>
+                            </>
+                        ) : (
+                            <li>
+                                <a
+                                    href="/auth/login"
+                                    class="text-white no-underline hover:bg-white/10 block px-4 py-2 rounded-md transition-colors"
+                                >
+                                    Login
+                                </a>
+                            </li>
+                        )
+                    }
+                </ul>
+            </div>
+        </div>
+    </nav>
+</div>
+
+<script>
+    const menuButton = document.getElementById("mobile-menu-button");
+    const mobileMenu = document.getElementById("mobile-menu");
+    const menuIconOpen = document.getElementById("menu-icon-open");
+    const menuIconClose = document.getElementById("menu-icon-close");
+    const menuOverlay = document.getElementById("mobile-menu-overlay");
+    const userMenuButton = document.getElementById("user-menu-button");
+    const userDropdown = document.getElementById("user-dropdown");
+    const dropdownChevron = document.getElementById("dropdown-chevron");
+
+    function toggleMenu() {
+        if (!mobileMenu || !menuIconOpen || !menuIconClose || !menuButton)
+            return;
+        const isOpen = !mobileMenu.classList.contains("hidden");
+
+        if (isOpen) {
+            mobileMenu.classList.add("hidden");
+            menuIconOpen.classList.remove("hidden");
+            menuIconClose.classList.add("hidden");
+            menuButton.setAttribute("aria-expanded", "false");
+        } else {
+            mobileMenu.classList.remove("hidden");
+            menuIconOpen.classList.add("hidden");
+            menuIconClose.classList.remove("hidden");
+            menuButton.setAttribute("aria-expanded", "true");
+        }
+    }
+
+    function closeMenu() {
+        if (!mobileMenu || !menuIconOpen || !menuIconClose || !menuButton)
+            return;
+        mobileMenu.classList.add("hidden");
+        menuIconOpen.classList.remove("hidden");
+        menuIconClose.classList.add("hidden");
+        menuButton.setAttribute("aria-expanded", "false");
+    }
+
+    function toggleUserDropdown() {
+        if (!userDropdown || !userMenuButton || !dropdownChevron) return;
+        const isOpen = !userDropdown.classList.contains("hidden");
+
+        if (isOpen) {
+            userDropdown.classList.add("hidden");
+            dropdownChevron.classList.remove("rotate-180");
+            userMenuButton.setAttribute("aria-expanded", "false");
+        } else {
+            userDropdown.classList.remove("hidden");
+            dropdownChevron.classList.add("rotate-180");
+            userMenuButton.setAttribute("aria-expanded", "true");
+        }
+    }
+
+    function closeUserDropdown() {
+        if (!userDropdown || !userMenuButton || !dropdownChevron) return;
+        userDropdown.classList.add("hidden");
+        dropdownChevron.classList.remove("rotate-180");
+        userMenuButton.setAttribute("aria-expanded", "false");
+    }
+
+    menuButton?.addEventListener("click", toggleMenu);
+    menuOverlay?.addEventListener("click", closeMenu);
+    userMenuButton?.addEventListener("click", toggleUserDropdown);
+
+    document.addEventListener("click", (e) => {
+        if (
+            userMenuButton &&
+            userDropdown &&
+            !userMenuButton.contains(e.target as Node) &&
+            !userDropdown.contains(e.target as Node)
+        ) {
+            closeUserDropdown();
+        }
+    });
+
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+            closeMenu();
+            closeUserDropdown();
+        }
+    });
+</script>

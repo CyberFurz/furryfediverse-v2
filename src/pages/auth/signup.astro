@@ -1,0 +1,180 @@
+---
+export const prerender = false;
+import Layout from "../../layouts/Layout.astro";
+
+const user = Astro.locals.user;
+if (user) {
+	return Astro.redirect("/auth/dashboard");
+}
+---
+
+<Layout title="Sign Up - Furry Fediverse">
+	<main class="flex items-center justify-center min-h-[calc(100vh-8rem)] p-4">
+		<div class="w-full max-w-md">
+			<div class="bg-[#0D3559] rounded-xl p-8 border border-white/10 shadow-xl">
+				<div class="text-center mb-8">
+					<h1 class="text-3xl font-bold text-white mb-2">
+						Create Account
+					</h1>
+					<p class="text-white/60">
+						Join the Furry Fediverse today
+					</p>
+				</div>
+
+				<form id="signup-form" class="space-y-5">
+					<div id="error-message" class="hidden bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg text-sm">
+					</div>
+
+					<div>
+						<label for="name" class="block text-sm font-medium text-white/80 mb-2">
+							Display Name
+						</label>
+						<input
+							type="text"
+							id="name"
+							name="name"
+							required
+							autocomplete="name"
+							class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+							placeholder="Your furry name"
+						/>
+					</div>
+
+					<div>
+						<label for="email" class="block text-sm font-medium text-white/80 mb-2">
+							Email Address
+						</label>
+						<input
+							type="email"
+							id="email"
+							name="email"
+							required
+							autocomplete="email"
+							class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+							placeholder="you@example.com"
+						/>
+					</div>
+
+					<div>
+						<label for="password" class="block text-sm font-medium text-white/80 mb-2">
+							Password
+						</label>
+						<input
+							type="password"
+							id="password"
+							name="password"
+							required
+							autocomplete="new-password"
+							minlength="8"
+							class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+							placeholder="At least 8 characters"
+						/>
+					</div>
+
+					<div>
+						<label for="confirm-password" class="block text-sm font-medium text-white/80 mb-2">
+							Confirm Password
+						</label>
+						<input
+							type="password"
+							id="confirm-password"
+							name="confirm-password"
+							required
+							autocomplete="new-password"
+							minlength="8"
+							class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+							placeholder="Re-enter your password"
+						/>
+					</div>
+
+					<button
+						type="submit"
+						id="submit-btn"
+						class="w-full bg-[#31dcb2] text-[#12384b] font-semibold px-6 py-3 rounded-lg hover:bg-[#28c4a0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						<span id="btn-text">Create Account</span>
+						<span id="btn-loading" class="hidden">
+							<svg class="animate-spin h-5 w-5 inline mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							Creating account...
+						</span>
+					</button>
+				</form>
+
+				<div class="mt-6 text-center">
+					<p class="text-white/60">
+						Already have an account?
+						<a href="/auth/login" class="text-[#31dcb2] hover:text-[#28c4a0] no-underline font-medium">
+							Sign in
+						</a>
+					</p>
+				</div>
+			</div>
+		</div>
+	</main>
+</Layout>
+
+<script>
+	const form = document.getElementById("signup-form") as HTMLFormElement;
+	const errorMessage = document.getElementById("error-message");
+	const submitBtn = document.getElementById("submit-btn") as HTMLButtonElement;
+	const btnText = document.getElementById("btn-text");
+	const btnLoading = document.getElementById("btn-loading");
+
+	form?.addEventListener("submit", async (e) => {
+		e.preventDefault();
+
+		const name = (document.getElementById("name") as HTMLInputElement).value;
+		const email = (document.getElementById("email") as HTMLInputElement).value;
+		const password = (document.getElementById("password") as HTMLInputElement).value;
+		const confirmPassword = (document.getElementById("confirm-password") as HTMLInputElement).value;
+
+		if (password !== confirmPassword) {
+			if (errorMessage) {
+				errorMessage.textContent = "Passwords do not match";
+				errorMessage.classList.remove("hidden");
+			}
+			return;
+		}
+
+		if (password.length < 8) {
+			if (errorMessage) {
+				errorMessage.textContent = "Password must be at least 8 characters";
+				errorMessage.classList.remove("hidden");
+			}
+			return;
+		}
+
+		submitBtn.disabled = true;
+		btnText?.classList.add("hidden");
+		btnLoading?.classList.remove("hidden");
+		errorMessage?.classList.add("hidden");
+
+		try {
+			const response = await fetch("/api/auth/sign-up/email", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ email, password, name }),
+			});
+
+			const data = await response.json();
+
+			if (!response.ok) {
+				throw new Error(data.message || "Sign up failed");
+			}
+
+			window.location.href = "/auth/dashboard";
+		} catch (error: unknown) {
+			const message = error instanceof Error ? error.message : "An unexpected error occurred";
+			if (errorMessage) {
+				errorMessage.textContent = message;
+				errorMessage.classList.remove("hidden");
+			}
+			submitBtn.disabled = false;
+			btnText?.classList.remove("hidden");
+			btnLoading?.classList.add("hidden");
+		}
+	});
+</script>
