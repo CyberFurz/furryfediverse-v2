@@ -27,4 +27,4 @@ pnpm-debug.log*
 .vscode/
 
 /generated/prisma
-.kilo
+.kilo/
