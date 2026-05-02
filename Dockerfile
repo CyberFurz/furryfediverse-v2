@@ -28,4 +28,4 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/generated ./generated
 
 EXPOSE 4321
-CMD ["sh", "-c", "pnpm prisma migrate deploy && node dist/server/entry.mjs"]
+CMD ["sh", "-c", "pnpm dlx prisma@7.8.0 migrate deploy && node dist/server/entry.mjs"]
