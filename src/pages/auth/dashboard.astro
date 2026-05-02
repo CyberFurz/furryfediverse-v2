@@ -4,6 +4,7 @@ import Layout from "../../layouts/Layout.astro";
 
 const user = Astro.locals.user;
 const session = Astro.locals.session;
+const blockedForUnverified = Astro.url.searchParams.get("unverified") === "1";
 
 if (!user) {
 	return Astro.redirect("/auth/login");
@@ -43,6 +44,11 @@ const memberSince = user.createdAt
 			>
 		</div>
 		<div class="py-5">
+			{blockedForUnverified && !user.emailVerified && (
+				<div class="mb-6 bg-amber-500/15 border border-amber-400/40 text-amber-100 px-4 py-3 rounded-lg text-sm">
+					Verify your email to add instances, link accounts, and write articles.
+				</div>
+			)}
 			<h1 class="text-3xl font-bold text-white mb-8">
 				Welcome back, <span class="text-[#31dcb2]">{user.name}</span>
 			</h1>
@@ -194,6 +200,20 @@ const memberSince = user.createdAt
 								{user.emailVerified ? "Verified" : "Pending"}
 							</span>
 						</div>
+						{!user.emailVerified && (
+							<div class="space-y-2">
+								<p class="text-white/60 text-sm">Didn't get the verification email?</p>
+								<div id="verification-status" class="hidden text-sm px-3 py-2 rounded-lg"></div>
+								<button
+									type="button"
+									id="resend-verification-btn"
+									data-email={user.email}
+									class="w-full bg-white/5 hover:bg-white/10 text-white font-medium px-4 py-2 rounded-lg transition-colors border border-white/20"
+								>
+									Resend verification email
+								</button>
+							</div>
+						)}
 						<div class="flex items-center justify-between">
 							<span class="text-white/60">Account ID</span>
 							<span class="text-white/80 text-sm font-mono"
@@ -214,3 +234,58 @@ const memberSince = user.createdAt
 		</div>
 	</main>
 </Layout>
+
+{!user.emailVerified && (
+	<script>
+		const resendButton = document.getElementById("resend-verification-btn") as HTMLButtonElement | null;
+		const verificationStatus = document.getElementById("verification-status");
+		const userEmail = resendButton?.getAttribute("data-email");
+
+		resendButton?.addEventListener("click", async () => {
+			if (!userEmail) {
+				if (verificationStatus) {
+					verificationStatus.textContent = "Unable to determine your email for verification.";
+					verificationStatus.className = "text-sm px-3 py-2 rounded-lg bg-red-500/20 border border-red-500/50 text-red-300";
+					verificationStatus.classList.remove("hidden");
+				}
+				return;
+			}
+			resendButton.disabled = true;
+			resendButton.textContent = "Sending...";
+			verificationStatus?.classList.add("hidden");
+
+			try {
+				const response = await fetch("/api/auth/send-verification-email", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ email: userEmail, callbackURL: "/auth/dashboard" }),
+				});
+
+				const contentType = response.headers.get("content-type") ?? "";
+				const data = contentType.includes("application/json") ? await response.json() : null;
+
+				if (!response.ok) {
+					const message = data && typeof data === "object" && "message" in data
+						? String(data.message)
+						: "Unable to send verification email";
+					throw new Error(message);
+				}
+
+				if (verificationStatus) {
+					verificationStatus.textContent = "Verification email sent. Check your inbox.";
+					verificationStatus.className = "text-sm px-3 py-2 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200";
+				}
+			} catch (errorValue: unknown) {
+				if (verificationStatus) {
+					const message = errorValue instanceof Error ? errorValue.message : "Unable to send verification email";
+					verificationStatus.textContent = message;
+					verificationStatus.className = "text-sm px-3 py-2 rounded-lg bg-red-500/20 border border-red-500/50 text-red-300";
+				}
+			} finally {
+				verificationStatus?.classList.remove("hidden");
+				resendButton.disabled = false;
+				resendButton.textContent = "Resend verification email";
+			}
+		});
+	</script>
+)}

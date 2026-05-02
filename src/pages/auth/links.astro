@@ -8,6 +8,10 @@ if (!user) {
 	return Astro.redirect("/auth/login");
 }
 
+if (!user.emailVerified) {
+	return Astro.redirect("/auth/dashboard?unverified=1");
+}
+
 const providers = [
 	{ key: "mastodon", label: "Mastodon" },
 	{ key: "pleroma", label: "Pleroma / Akkoma" },
