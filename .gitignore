@@ -26,5 +26,8 @@ pnpm-debug.log*
 # vscode setting folder
 .vscode/
 
+# local storage
+storage/
+
 /generated/prisma
 .kilo/
