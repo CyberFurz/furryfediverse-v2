@@ -422,6 +422,7 @@ if (!user) {
                         successMessage.textContent =
                             "Instance updated successfully!";
                         successMessage.classList.remove("hidden");
+                        document.getElementById("edit-instance-form").scrollIntoView({ behavior: "smooth", block: "start" });
                     } else {
                         throw new Error(
                             data.error || "Failed to update instance",
@@ -432,6 +433,7 @@ if (!user) {
                     errorMessage.textContent =
                         error.message || "An unexpected error occurred";
                     errorMessage.classList.remove("hidden");
+                    document.getElementById("edit-instance-form").scrollIntoView({ behavior: "smooth", block: "start" });
                 })
                 .finally(function () {
                     submitBtn.disabled = false;

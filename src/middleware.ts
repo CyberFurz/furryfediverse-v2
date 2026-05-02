@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { defineMiddleware } from "astro:middleware";
 
 export const onRequest = defineMiddleware(async (context, next) => {
@@ -9,7 +10,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
     .catch(() => null);
 
   if (session) {
-    context.locals.user = session.user;
+    const freshUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+    });
+
+    context.locals.user = freshUser
+      ? { ...session.user, ...freshUser }
+      : session.user;
     context.locals.session = session.session;
   } else {
     context.locals.user = null;

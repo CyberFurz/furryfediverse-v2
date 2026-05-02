@@ -1,0 +1,117 @@
+---
+export const prerender = false;
+import Layout from "../../../layouts/Layout.astro";
+
+const user = Astro.locals.user;
+---
+
+<Layout title="Loading... - Furry Fediverse">
+    <main class="p-2 md:p-5 lg:px-60 2xl:px-80">
+        <div class="flex flex-col">
+            <div
+                class="flex items-center gap-2 text-sm bg-[#31dcb2] px-4 py-2 rounded-md"
+            >
+                <a href="/" class="text-[#12384b] font-semibold">Home</a>
+                <svg
+                    class="w-4 h-4 text-[#12384b]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5l7 7-7 7"></path>
+                </svg>
+                <a href="/learn" class="text-[#12384b] font-semibold">Learn</a>
+                <svg
+                    class="w-4 h-4 text-[#12384b]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5l7 7-7 7"></path>
+                </svg>
+                <span id="breadcrumb-title" class="text-[#12384b] font-semibold">Article</span>
+            </div>
+
+            <div id="article-content" class="py-6">
+                <div class="flex justify-center py-16">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#31dcb2]"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+</Layout>
+
+<script is:inline>
+    document.addEventListener("DOMContentLoaded", function() {
+        var articleId = window.location.pathname.split("/").pop();
+
+        fetch("/api/learn/view/" + articleId)
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.error) {
+                    document.getElementById("article-content").innerHTML =
+                        '<div class="text-center py-16">' +
+                        '<p class="text-white/50 text-lg">' + escapeHtml(data.error) + '</p>' +
+                        '<a href="/learn" class="text-[#31dcb2] hover:underline mt-4 inline-block">Back to Learn</a>' +
+                        '</div>';
+                    return;
+                }
+
+                var article = data.article;
+                document.getElementById("breadcrumb-title").textContent = article.title;
+                document.title = article.title + " - Learn - Furry Fediverse";
+
+                var categoryLabels = { "self-hosting": "Self-Hosting", "how-to": "How To", "other": "Other" };
+                var categoryColors = {
+                    "self-hosting": "bg-purple-500/20 text-purple-300 border-purple-500/50",
+                    "how-to": "bg-blue-500/20 text-blue-300 border-blue-500/50",
+                    "other": "bg-green-500/20 text-green-300 border-green-500/50"
+                };
+
+                var categoryColor = categoryColors[article.category] || "bg-white/10 text-white/70 border-white/30";
+                var date = new Date(article.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+                document.getElementById("article-content").innerHTML =
+                    '<div class="max-w-4xl mx-auto">' +
+                    '<div class="mb-6">' +
+                    '<div class="flex items-center gap-2 mb-3 flex-wrap">' +
+                    '<h1 class="font-bold text-3xl text-white">' + escapeHtml(article.title) + '</h1>' +
+                    '<span class="text-xs px-2 py-1 rounded border ' + categoryColor + '">' +
+                    (categoryLabels[article.category] || article.category) + '</span>' +
+                    '</div>' +
+                    '<p class="text-sm text-white/40">By ' + escapeHtml(article.author.name) + ' · ' + date + '</p>' +
+                    '</div>' +
+                    '<div class="prose prose-invert max-w-none bg-[#0D3559] border border-white/10 rounded-lg p-6 article-body">' +
+                    article.content +
+                    '</div>' +
+                    '<div class="mt-6">' +
+                    '<a href="/learn" class="text-[#31dcb2] hover:underline flex items-center gap-2">' +
+                    '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+                    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>' +
+                    '</svg>Back to Learn</a>' +
+                    '</div>' +
+                    '</div>';
+            })
+            .catch(function(error) {
+                document.getElementById("article-content").innerHTML =
+                    '<div class="text-center py-16">' +
+                    '<p class="text-white/50 text-lg">Failed to load article</p>' +
+                    '<a href="/learn" class="text-[#31dcb2] hover:underline mt-4 inline-block">Back to Learn</a>' +
+                    '</div>';
+            });
+    });
+
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>

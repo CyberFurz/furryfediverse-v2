@@ -3,23 +3,27 @@ import path from "path";
 import sharp from "sharp";
 
 const THUMBNAIL_DIR = path.join(process.cwd(), "storage", "thumbnails");
+const PROFILE_DIR = path.join(process.cwd(), "storage", "profiles");
 
-export async function downloadAndCacheImage(
+async function downloadAndCacheImageToDir(
     imageUrl: string,
-    filename: string
+    filename: string,
+    outputDir: string,
+    publicBasePath: string,
+    forceRefresh: boolean = false,
 ): Promise<string | null> {
     if (!imageUrl) return null;
 
     try {
-        if (!fs.existsSync(THUMBNAIL_DIR)) {
-            fs.mkdirSync(THUMBNAIL_DIR, { recursive: true });
+        if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true });
         }
 
         const webpFilename = filename + ".webp";
-        const finalFilePath = path.join(THUMBNAIL_DIR, webpFilename);
+        const finalFilePath = path.join(outputDir, webpFilename);
 
-        if (fs.existsSync(finalFilePath)) {
-            return `/api/instances/images/${webpFilename}`;
+        if (!forceRefresh && fs.existsSync(finalFilePath)) {
+            return `${publicBasePath}/${webpFilename}`;
         }
 
         const response = await fetch(imageUrl, {
@@ -47,9 +51,51 @@ export async function downloadAndCacheImage(
 
         fs.writeFileSync(finalFilePath, webpBuffer);
 
-        return `/api/instances/images/${webpFilename}`;
+        return `${publicBasePath}/${webpFilename}`;
     } catch (error) {
         console.error(`Error downloading image ${imageUrl}:`, error);
         return null;
+    }
+}
+
+export async function downloadAndCacheImage(
+    imageUrl: string,
+    filename: string,
+    forceRefresh: boolean = false,
+): Promise<string | null> {
+    return downloadAndCacheImageToDir(
+        imageUrl,
+        filename,
+        THUMBNAIL_DIR,
+        "/api/instances/images",
+        forceRefresh,
+    );
+}
+
+export async function downloadAndCacheProfileImage(
+    imageUrl: string,
+    filename: string,
+    forceRefresh: boolean = false,
+): Promise<string | null> {
+    return downloadAndCacheImageToDir(
+        imageUrl,
+        filename,
+        PROFILE_DIR,
+        "/api/profiles/images",
+        forceRefresh,
+    );
+}
+
+export function deleteCachedProfileImageByUrl(imageUrl: string | null | undefined): void {
+    if (!imageUrl || !imageUrl.startsWith("/api/profiles/images/")) return;
+
+    try {
+        const filename = path.basename(imageUrl);
+        const filePath = path.join(PROFILE_DIR, filename);
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+    } catch (error) {
+        console.error("Error deleting cached profile image:", error);
     }
 }

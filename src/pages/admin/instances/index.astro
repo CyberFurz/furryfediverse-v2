@@ -1,0 +1,209 @@
+---
+export const prerender = false;
+import Layout from "../../../layouts/Layout.astro";
+import { prisma } from "../../../lib/prisma";
+import { auth } from "../../../lib/auth";
+
+const user = Astro.locals.user;
+
+if (!user) {
+	return Astro.redirect("/auth/login");
+}
+
+const roles = (user.role || "user").split(",");
+const isAdmin = roles.includes("admin");
+if (!isAdmin) {
+	return Astro.redirect("/auth/dashboard");
+}
+
+const searchParam = new URL(Astro.request.url).searchParams.get("search") || "";
+const filterParam = new URL(Astro.request.url).searchParams.get("filter") || "";
+const pageParam = parseInt(new URL(Astro.request.url).searchParams.get("page") || "1");
+const limit = 20;
+
+const where: any = {};
+if (searchParam) {
+	where.OR = [
+		{ domain: { contains: searchParam, mode: "insensitive" } },
+		{ title: { contains: searchParam, mode: "insensitive" } },
+	];
+}
+if (filterParam === "verified") where.verified = true;
+else if (filterParam === "unverified") where.verified = false;
+
+const [instances, total] = await Promise.all([
+	prisma.instance.findMany({
+		where,
+		orderBy: { createdAt: "desc" },
+		take: limit,
+		skip: (pageParam - 1) * limit,
+		include: { addedBy: { select: { name: true, email: true } } },
+	}),
+	prisma.instance.count({ where }),
+]);
+
+const totalPages = Math.ceil(total / limit);
+const currentPage = pageParam;
+---
+
+<Layout title="Instance Management - Admin - Furry Fediverse">
+	<main class="p-2 md:p-5 lg:px-60 2xl:px-80">
+		<div class="py-8">
+			<div class="flex items-center justify-between mb-8">
+				<div>
+					<h1 class="text-3xl font-bold text-white">
+						Instance <span class="text-[#31dcb2]">Management</span>
+					</h1>
+					<a href="/admin" class="text-white/60 text-sm hover:text-[#31dcb2] transition-colors no-underline">
+						&larr; Back to Admin Dashboard
+					</a>
+				</div>
+				<span class="text-white/60 text-sm">{total} total instances</span>
+			</div>
+
+			<div class="bg-[#0D3559] rounded-xl p-6 border border-white/10 mb-6">
+				<div class="flex gap-3">
+					<form method="GET" class="flex-1 flex gap-3">
+						<input type="hidden" name="filter" value={filterParam} />
+						<input type="text" name="search" value={searchParam} placeholder="Search by domain or title..." class="flex-1 px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2]" />
+						<button type="submit" class="bg-[#31dcb2] text-[#12384b] font-semibold px-6 py-3 rounded-lg hover:bg-[#28c4a0] transition-colors">Search</button>
+					</form>
+					<div class="flex gap-2">
+						<a href="/admin/instances?{filter=}" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === '' ? 'bg-[#31dcb2] text-[#12384b] border-[#31dcb2]' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">All</a>
+						<a href="/admin/instances?filter=verified" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === 'verified' ? 'bg-green-500/20 text-green-300 border-green-500/50' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">Verified</a>
+						<a href="/admin/instances?filter=unverified" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === 'unverified' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">Unverified</a>
+					</div>
+				</div>
+			</div>
+
+			<div class="bg-[#0D3559] rounded-xl border border-white/10 overflow-hidden">
+				<table class="w-full">
+					<thead class="bg-white/5 border-b border-white/10">
+						<tr>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Instance</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Type</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Users</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Status</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Added By</th>
+							<th class="text-right px-6 py-4 text-white/60 font-medium text-sm">Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						{instances.map((instance) => (
+							<tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+								<td class="px-6 py-4">
+									<div>
+										<p class="text-white font-medium">{instance.title}</p>
+										<p class="text-white/60 text-sm">{instance.domain}</p>
+									</div>
+								</td>
+								<td class="px-6 py-4">
+									<span class="px-2 py-1 bg-blue-500/20 text-blue-300 rounded text-xs font-medium capitalize">{instance.instanceType}</span>
+								</td>
+								<td class="px-6 py-4 text-white/60">{instance.userCount.toLocaleString()}</td>
+								<td class="px-6 py-4">
+									{instance.verified ? (
+										<span class="px-2 py-1 bg-green-500/20 text-green-300 rounded text-xs font-medium">Verified</span>
+									) : (
+										<span class="px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded text-xs font-medium">Unverified</span>
+									)}
+								</td>
+								<td class="px-6 py-4 text-white/60 text-sm">
+									{instance.addedBy.name}
+								</td>
+								<td class="px-6 py-4">
+									<div class="flex items-center justify-end gap-2">
+										{!instance.verified && (
+											<button class="p-2 rounded hover:bg-white/10 transition-colors" data-instance-id={instance.id} data-action="forceApprove" title="Force approve">
+												<svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+											</button>
+										)}
+										{instance.verified && (
+											<button class="p-2 rounded hover:bg-white/10 transition-colors" data-instance-id={instance.id} data-action="ban" title="Remove verification">
+												<svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+											</button>
+										)}
+										<button class="p-2 rounded hover:bg-white/10 transition-colors" data-instance-id={instance.id} data-action="delete" title="Delete instance">
+											<svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+										</button>
+									</div>
+								</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+				{instances.length === 0 && (
+					<div class="p-8 text-center text-white/60">No instances found</div>
+				)}
+			</div>
+
+			{totalPages > 1 && (
+				<div class="flex items-center justify-between mt-6">
+					<p class="text-white/60 text-sm">
+						Showing {(currentPage - 1) * limit + 1} to {Math.min(currentPage * limit, total)} of {total}
+					</p>
+					<div class="flex gap-2">
+						{currentPage > 1 && (
+							<a href={`/admin/instances?${searchParam ? `search=${searchParam}&` : ""}${filterParam ? `filter=${filterParam}&` : ""}page=${currentPage - 1}`} class="px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors no-underline">Previous</a>
+						)}
+						{currentPage < totalPages && (
+							<a href={`/admin/instances?${searchParam ? `search=${searchParam}&` : ""}${filterParam ? `filter=${filterParam}&` : ""}page=${currentPage + 1}`} class="px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors no-underline">Next</a>
+						)}
+					</div>
+				</div>
+			)}
+		</div>
+	</main>
+</Layout>
+
+<div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+<script>
+	const toastContainer = document.getElementById("toast-container");
+
+	function showToast(message: string, type: "success" | "error" = "success") {
+		const toast = document.createElement("div");
+		toast.className = `px-4 py-3 rounded-lg shadow-lg text-white text-sm ${type === "success" ? "bg-green-600" : "bg-red-600"}`;
+		toast.textContent = message;
+		toastContainer?.appendChild(toast);
+		setTimeout(() => toast.remove(), 3000);
+	}
+
+	async function callInstanceAction(action: string, instanceId: string) {
+		const res = await fetch("/api/admin/instances", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ action, instanceId }),
+		});
+		const data = await res.json();
+		if (!res.ok) {
+			throw new Error(data.error || "Action failed");
+		}
+		return data;
+	}
+
+	document.querySelectorAll("[data-action]").forEach((btn) => {
+		btn.addEventListener("click", async (e) => {
+			const target = e.currentTarget as HTMLElement;
+			const instanceId = target.dataset.instanceId;
+			const action = target.dataset.action;
+
+			if (!instanceId || !action) return;
+
+			const confirmMsg = action === "forceApprove" ? "Force approve this instance?" : action === "ban" ? "Remove verification from this instance?" : "Delete this instance permanently?";
+			if (!confirm(confirmMsg)) return;
+
+			target.classList.add("opacity-50", "pointer-events-none");
+
+			try {
+				await callInstanceAction(action, instanceId);
+				showToast(action === "forceApprove" ? "Instance approved" : action === "ban" ? "Instance unverified" : "Instance deleted");
+				setTimeout(() => window.location.reload(), 500);
+			} catch (err: unknown) {
+				const msg = err instanceof Error ? err.message : "Action failed";
+				showToast(msg, "error");
+				target.classList.remove("opacity-50", "pointer-events-none");
+			}
+		});
+	});
+</script>

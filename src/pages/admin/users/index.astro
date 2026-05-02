@@ -1,0 +1,385 @@
+---
+export const prerender = false;
+import Layout from "../../../layouts/Layout.astro";
+
+const user = Astro.locals.user;
+
+if (!user) {
+	return Astro.redirect("/auth/login");
+}
+
+const roles = (user.role || "user").split(",");
+const isAdmin = roles.includes("admin");
+if (!isAdmin) {
+	return Astro.redirect("/auth/dashboard");
+}
+
+async function getUsers(query?: string, page?: number) {
+	try {
+		const params = new URLSearchParams({
+			limit: "50",
+			sortBy: "createdAt",
+			sortDirection: "desc",
+		});
+		if (query) {
+			params.set("searchValue", query);
+			params.set("searchField", "email");
+			params.set("searchOperator", "contains");
+		}
+		if (page && page > 1) {
+			params.set("offset", String((page - 1) * 50));
+		}
+
+		const res = await fetch(`${process.env.BETTER_AUTH_URL || "http://localhost:4321"}/api/auth/admin/list-users?${params}`, {
+			headers: Astro.request.headers,
+		});
+		const data = await res.json();
+		return data;
+	} catch {
+		return null;
+	}
+}
+
+const searchParam = new URL(Astro.request.url).searchParams.get("search") || "";
+const pageParam = parseInt(new URL(Astro.request.url).searchParams.get("page") || "1");
+const usersData = await getUsers(searchParam, pageParam);
+const users = usersData?.users || [];
+const total = usersData?.total || 0;
+const limit = 50;
+const currentPage = pageParam;
+const totalPages = Math.ceil(total / limit);
+---
+
+<Layout title="User Management - Admin - Furry Fediverse">
+	<main class="p-2 md:p-5 lg:px-60 2xl:px-80">
+		<div class="py-8">
+			<div class="flex items-center justify-between mb-8">
+				<div>
+					<h1 class="text-3xl font-bold text-white">
+						User <span class="text-[#31dcb2]">Management</span>
+					</h1>
+					<a href="/admin" class="text-white/60 text-sm hover:text-[#31dcb2] transition-colors no-underline">
+						&larr; Back to Admin Dashboard
+					</a>
+				</div>
+				<div class="flex items-center gap-4">
+					<span class="text-white/60 text-sm">{total} total users</span>
+					<button
+						id="create-user-btn"
+						class="bg-[#31dcb2] text-[#12384b] font-semibold px-4 py-2 rounded-lg hover:bg-[#28c4a0] transition-colors"
+					>
+						Create User
+					</button>
+				</div>
+			</div>
+
+			<div class="bg-[#0D3559] rounded-xl p-6 border border-white/10 mb-6">
+				<form method="GET" class="flex gap-3">
+					<input
+						type="text"
+						name="search"
+						value={searchParam}
+						placeholder="Search by email..."
+						class="flex-1 px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+					/>
+					<button type="submit" class="bg-[#31dcb2] text-[#12384b] font-semibold px-6 py-3 rounded-lg hover:bg-[#28c4a0] transition-colors">
+						Search
+					</button>
+				</form>
+			</div>
+
+			<div class="bg-[#0D3559] rounded-xl border border-white/10 overflow-hidden">
+				<table class="w-full">
+					<thead class="bg-white/5 border-b border-white/10">
+						<tr>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">User</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Role</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Status</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Created</th>
+							<th class="text-right px-6 py-4 text-white/60 font-medium text-sm">Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						{users.map((u: any) => {
+							const userRoles = (u.role || "user").split(",");
+							return (
+								<tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+									<td class="px-6 py-4">
+										<div class="flex items-center gap-3">
+											<div class="w-10 h-10 bg-[#31dcb2] rounded-full flex items-center justify-center text-[#12384b] font-bold text-sm shrink-0">
+												{u.name?.charAt(0).toUpperCase() || "U"}
+											</div>
+											<div>
+												<p class="text-white font-medium">{u.name}</p>
+												<p class="text-white/60 text-sm">{u.email}</p>
+											</div>
+										</div>
+									</td>
+									<td class="px-6 py-4">
+										<div class="flex gap-1 flex-wrap">
+											{userRoles.map((r: string) => (
+												<span class={`px-2 py-1 rounded text-xs font-medium ${r === "admin" ? "bg-purple-500/20 text-purple-300" : r === "reviewer" ? "bg-yellow-500/20 text-yellow-300" : "bg-blue-500/20 text-blue-300"}`}>
+													{r}
+												</span>
+											))}
+										</div>
+									</td>
+									<td class="px-6 py-4">
+										{u.banned ? (
+											<span class="px-2 py-1 bg-red-500/20 text-red-300 rounded text-xs font-medium">Banned</span>
+										) : (
+											<span class="px-2 py-1 bg-green-500/20 text-green-300 rounded text-xs font-medium">Active</span>
+										)}
+									</td>
+									<td class="px-6 py-4 text-white/60 text-sm">
+										{new Date(u.createdAt).toLocaleDateString()}
+									</td>
+									<td class="px-6 py-4">
+										<div class="flex items-center justify-end gap-2">
+											<button class="edit-user-btn p-2 rounded hover:bg-white/10 transition-colors" data-user-id={u.id} data-user-name={u.name} data-user-email={u.email} data-user-role={u.role || "user"} title="Edit user">
+												<svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m1.414-1.414a2 2 0 012.828 0L19 14.414m0 0l-4.414 4.414M15 3h6v6"></path></svg>
+											</button>
+											<button class="p-2 rounded hover:bg-white/10 transition-colors" data-user-id={u.id} data-action={u.banned ? "unban" : "ban"} title={u.banned ? "Unban" : "Ban"}>
+												{u.banned ? (
+													<svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+												) : (
+													<svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+												)}
+											</button>
+											<button class="p-2 rounded hover:bg-white/10 transition-colors" data-user-id={u.id} data-action="delete" title="Delete user">
+												<svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+											</button>
+										</div>
+									</td>
+								</tr>
+							);
+						})}
+					</tbody>
+				</table>
+				{users.length === 0 && (
+					<div class="p-8 text-center text-white/60">No users found</div>
+				)}
+			</div>
+
+			{totalPages > 1 && (
+				<div class="flex items-center justify-between mt-6">
+					<p class="text-white/60 text-sm">
+						Showing {(currentPage - 1) * limit + 1} to {Math.min(currentPage * limit, total)} of {total}
+					</p>
+					<div class="flex gap-2">
+						{currentPage > 1 && (
+							<a href={`/admin/users?${searchParam ? `search=${searchParam}&` : ""}page=${currentPage - 1}`} class="px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors no-underline">Previous</a>
+						)}
+						{currentPage < totalPages && (
+							<a href={`/admin/users?${searchParam ? `search=${searchParam}&` : ""}page=${currentPage + 1}`} class="px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors no-underline">Next</a>
+						)}
+					</div>
+				</div>
+			)}
+		</div>
+	</main>
+</Layout>
+
+<div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+<div id="create-user-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+	<div class="bg-[#0D3559] rounded-xl border border-white/20 w-full max-w-md p-6">
+		<div class="flex items-center justify-between mb-6">
+			<h2 class="text-xl font-bold text-white">Create User</h2>
+			<button id="close-create-modal" class="text-white/60 hover:text-white">
+				<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+			</button>
+		</div>
+		<form id="create-user-form" class="space-y-4">
+			<div>
+				<label class="block text-sm font-medium text-white/80 mb-2">Name</label>
+				<input type="text" id="create-name" required class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2]" placeholder="Full name" />
+			</div>
+			<div>
+				<label class="block text-sm font-medium text-white/80 mb-2">Email</label>
+				<input type="email" id="create-email" required class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2]" placeholder="user@example.com" />
+			</div>
+			<div>
+				<label class="block text-sm font-medium text-white/80 mb-2">Password</label>
+				<input type="password" id="create-password" required minlength="8" class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2]" placeholder="Minimum 8 characters" />
+			</div>
+			<div>
+				<label class="block text-sm font-medium text-white/80 mb-2">Role</label>
+				<select id="create-role" class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2]">
+					<option value="user">User</option>
+					<option value="reviewer">Reviewer</option>
+					<option value="admin">Admin</option>
+				</select>
+			</div>
+			<div id="create-error" class="hidden bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg text-sm"></div>
+			<button type="submit" id="create-submit" class="w-full bg-[#31dcb2] text-[#12384b] font-semibold px-6 py-3 rounded-lg hover:bg-[#28c4a0] transition-colors">
+				Create User
+			</button>
+		</form>
+	</div>
+</div>
+
+<div id="edit-user-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+	<div class="bg-[#0D3559] rounded-xl border border-white/20 w-full max-w-md p-6">
+		<div class="flex items-center justify-between mb-6">
+			<h2 class="text-xl font-bold text-white">Edit User</h2>
+			<button id="close-edit-modal" class="text-white/60 hover:text-white">
+				<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+			</button>
+		</div>
+		<form id="edit-user-form" class="space-y-4">
+			<input type="hidden" id="edit-user-id" />
+			<div>
+				<label class="block text-sm font-medium text-white/80 mb-2">Name</label>
+				<input type="text" id="edit-name" required class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2]" />
+			</div>
+			<div>
+				<label class="block text-sm font-medium text-white/80 mb-2">Email</label>
+				<input type="email" id="edit-email" required class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2]" />
+			</div>
+			<div>
+				<label class="block text-sm font-medium text-white/80 mb-2">Role</label>
+				<select id="edit-role" class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2]">
+					<option value="user">User</option>
+					<option value="reviewer">Reviewer</option>
+					<option value="admin">Admin</option>
+				</select>
+			</div>
+			<div id="edit-error" class="hidden bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg text-sm"></div>
+			<button type="submit" id="edit-submit" class="w-full bg-[#31dcb2] text-[#12384b] font-semibold px-6 py-3 rounded-lg hover:bg-[#28c4a0] transition-colors">
+				Save Changes
+			</button>
+		</form>
+	</div>
+</div>
+
+<script>
+	const toastContainer = document.getElementById("toast-container");
+
+	function showToast(message: string, type: "success" | "error" = "success") {
+		const toast = document.createElement("div");
+		toast.className = `px-4 py-3 rounded-lg shadow-lg text-white text-sm ${type === "success" ? "bg-green-600" : "bg-red-600"}`;
+		toast.textContent = message;
+		toastContainer?.appendChild(toast);
+		setTimeout(() => toast.remove(), 3000);
+	}
+
+	async function callAdminAction(action: string, body: Record<string, unknown>) {
+		const res = await fetch("/api/admin/actions", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ action, ...body }),
+		});
+		const data = await res.json();
+		if (!res.ok) {
+			throw new Error(data.error || "Action failed");
+		}
+		return data;
+	}
+
+	const createModal = document.getElementById("create-user-modal");
+	const editModal = document.getElementById("edit-user-modal");
+
+	document.getElementById("create-user-btn")?.addEventListener("click", () => {
+		createModal?.classList.remove("hidden");
+	});
+	document.getElementById("close-create-modal")?.addEventListener("click", () => {
+		createModal?.classList.add("hidden");
+	});
+	document.getElementById("close-edit-modal")?.addEventListener("click", () => {
+		editModal?.classList.add("hidden");
+	});
+
+	document.getElementById("create-user-form")?.addEventListener("submit", async (e) => {
+		e.preventDefault();
+		const errorEl = document.getElementById("create-error");
+		const submitBtn = document.getElementById("create-submit") as HTMLButtonElement;
+
+		const name = (document.getElementById("create-name") as HTMLInputElement).value;
+		const email = (document.getElementById("create-email") as HTMLInputElement).value;
+		const password = (document.getElementById("create-password") as HTMLInputElement).value;
+		const role = (document.getElementById("create-role") as HTMLSelectElement).value;
+
+		submitBtn.disabled = true;
+		errorEl?.classList.add("hidden");
+
+		try {
+			await callAdminAction("createUser", { name, email, password, role });
+			showToast("User created successfully");
+			createModal?.classList.add("hidden");
+			setTimeout(() => window.location.reload(), 500);
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : "Failed to create user";
+			errorEl?.classList.remove("hidden");
+			if (errorEl) errorEl.textContent = msg;
+			submitBtn.disabled = false;
+		}
+	});
+
+	document.querySelectorAll(".edit-user-btn").forEach((btn) => {
+		btn.addEventListener("click", () => {
+			const target = btn as HTMLElement;
+			(document.getElementById("edit-user-id") as HTMLInputElement).value = target.dataset.userId || "";
+			(document.getElementById("edit-name") as HTMLInputElement).value = target.dataset.userName || "";
+			(document.getElementById("edit-email") as HTMLInputElement).value = target.dataset.userEmail || "";
+
+			const roles = (target.dataset.userRole || "user").split(",");
+			const currentRole = roles.includes("admin") ? "admin" : roles.includes("reviewer") ? "reviewer" : "user";
+			(document.getElementById("edit-role") as HTMLSelectElement).value = currentRole;
+
+			editModal?.classList.remove("hidden");
+		});
+	});
+
+	document.getElementById("edit-user-form")?.addEventListener("submit", async (e) => {
+		e.preventDefault();
+		const errorEl = document.getElementById("edit-error");
+		const submitBtn = document.getElementById("edit-submit") as HTMLButtonElement;
+
+		const userId = (document.getElementById("edit-user-id") as HTMLInputElement).value;
+		const name = (document.getElementById("edit-name") as HTMLInputElement).value;
+		const email = (document.getElementById("edit-email") as HTMLInputElement).value;
+		const role = (document.getElementById("edit-role") as HTMLSelectElement).value;
+
+		submitBtn.disabled = true;
+		errorEl?.classList.add("hidden");
+
+		try {
+			await callAdminAction("updateUser", { userId, data: { name, email } });
+			await callAdminAction("setRole", { userId, role });
+			showToast("User updated successfully");
+			editModal?.classList.add("hidden");
+			setTimeout(() => window.location.reload(), 500);
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : "Failed to update user";
+			errorEl?.classList.remove("hidden");
+			if (errorEl) errorEl.textContent = msg;
+			submitBtn.disabled = false;
+		}
+	});
+
+	document.querySelectorAll("[data-action='ban'], [data-action='unban'], [data-action='delete']").forEach((btn) => {
+		btn.addEventListener("click", async (e) => {
+			const target = e.currentTarget as HTMLElement;
+			const userId = target.dataset.userId;
+			const action = target.dataset.action;
+
+			if (!userId || !action) return;
+
+			const confirmMsg = action === "ban" ? "Ban this user?" : action === "unban" ? "Unban this user?" : "Delete this user permanently?";
+			if (!confirm(confirmMsg)) return;
+
+			target.classList.add("opacity-50", "pointer-events-none");
+
+			try {
+				await callAdminAction(action === "ban" ? "ban" : action === "unban" ? "unban" : "removeUser", { userId });
+				showToast(action === "ban" ? "User banned" : action === "unban" ? "User unbanned" : "User deleted");
+				setTimeout(() => window.location.reload(), 500);
+			} catch (err: unknown) {
+				const msg = err instanceof Error ? err.message : "Action failed";
+				showToast(msg, "error");
+				target.classList.remove("opacity-50", "pointer-events-none");
+			}
+		});
+	});
+</script>

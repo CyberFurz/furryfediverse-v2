@@ -1,0 +1,405 @@
+---
+export const prerender = false;
+import Layout from "../../layouts/Layout.astro";
+
+const user = Astro.locals.user;
+
+if (!user) {
+	return Astro.redirect("/auth/login");
+}
+---
+
+<Layout title="Account Settings - Furry Fediverse">
+	<main class="p-2 md:p-5 lg:px-60 2xl:px-80">
+		<div
+			class="flex items-center gap-2 text-sm bg-[#31dcb2] px-4 py-2 rounded-md"
+		>
+			<a href="/" class="text-[#12384b] font-semibold">Home</a>
+			<svg
+				class="w-4 h-4 text-[#12384b]"
+				fill="none"
+				stroke="currentColor"
+				viewBox="0 0 24 24"
+			>
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					stroke-width="2"
+					d="M9 5l7 7-7 7"></path>
+			</svg>
+			<a href="/auth/dashboard" class="text-[#12384b] font-semibold"
+				>User Dashboard</a
+			>
+			<svg
+				class="w-4 h-4 text-[#12384b]"
+				fill="none"
+				stroke="currentColor"
+				viewBox="0 0 24 24"
+			>
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					stroke-width="2"
+					d="M9 5l7 7-7 7"></path>
+			</svg>
+			<a href="/auth/settings" class="text-[#12384b] font-semibold"
+				>Account Settings</a
+			>
+		</div>
+		<div class="py-5 space-y-6">
+			<h1 class="text-3xl font-bold text-white">Account Settings</h1>
+
+			<section class="bg-[#0D3559] rounded-xl p-6 border border-white/10">
+				<h2 class="text-xl font-bold text-white mb-4">
+					Profile Information
+				</h2>
+				<form id="profile-form" class="space-y-4">
+					<input
+						type="hidden"
+						id="initial-email"
+						value={user.email}
+					/>
+					<div
+						id="profile-message"
+						class="hidden px-4 py-3 rounded-lg text-sm"
+					>
+					</div>
+					<div>
+						<label
+							for="name"
+							class="block text-sm font-medium text-white/80 mb-2"
+							>Display Name</label
+						>
+						<input
+							type="text"
+							id="name"
+							name="name"
+							required
+							value={user.name}
+							class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2]"
+						/>
+					</div>
+					<div>
+						<label
+							for="email"
+							class="block text-sm font-medium text-white/80 mb-2"
+							>Email Address</label
+						>
+						<input
+							type="email"
+							id="email"
+							name="email"
+							required
+							value={user.email}
+							autocomplete="email"
+							class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2]"
+						/>
+					</div>
+					<div
+						class="bg-white/5 border border-white/15 rounded-lg p-4"
+					>
+						<p class="text-sm text-white/80 leading-relaxed">
+							Profile image is managed from your linked Fediverse
+							profiles. Link one on
+							<a
+								href="/auth/links"
+								class="text-[#31dcb2] hover:text-[#28c4a0] no-underline font-medium"
+								>My Fediverse Users</a
+							>
+							and set it as your primary avatar.
+						</p>
+					</div>
+					<button
+						type="submit"
+						id="profile-submit"
+						class="bg-[#31dcb2] text-[#12384b] font-semibold px-6 py-3 rounded-lg hover:bg-[#28c4a0] transition-colors disabled:opacity-50"
+					>
+						Save Profile Changes
+					</button>
+				</form>
+			</section>
+
+			<section class="bg-[#0D3559] rounded-xl p-6 border border-white/10">
+				<h2 class="text-xl font-bold text-white mb-4">
+					Change Password
+				</h2>
+				<form id="password-form" class="space-y-4">
+					<div
+						id="password-message"
+						class="hidden px-4 py-3 rounded-lg text-sm"
+					>
+					</div>
+					<div>
+						<label
+							for="current-password"
+							class="block text-sm font-medium text-white/80 mb-2"
+							>Current Password</label
+						>
+						<input
+							type="password"
+							id="current-password"
+							required
+							autocomplete="current-password"
+							class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2]"
+						/>
+					</div>
+					<div>
+						<label
+							for="new-password"
+							class="block text-sm font-medium text-white/80 mb-2"
+							>New Password</label
+						>
+						<input
+							type="password"
+							id="new-password"
+							required
+							minlength="8"
+							autocomplete="new-password"
+							class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2]"
+						/>
+					</div>
+					<div>
+						<label
+							for="confirm-password"
+							class="block text-sm font-medium text-white/80 mb-2"
+							>Confirm New Password</label
+						>
+						<input
+							type="password"
+							id="confirm-password"
+							required
+							minlength="8"
+							autocomplete="new-password"
+							class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2]"
+						/>
+					</div>
+					<button
+						type="submit"
+						id="password-submit"
+						class="bg-[#31dcb2] text-[#12384b] font-semibold px-6 py-3 rounded-lg hover:bg-[#28c4a0] transition-colors disabled:opacity-50"
+					>
+						Update Password
+					</button>
+				</form>
+			</section>
+
+			<section
+				class="bg-[#5f0b15] rounded-xl p-6 border border-red-400/60"
+			>
+				<h2 class="text-xl font-bold text-red-100 mb-2">
+					Delete Account
+				</h2>
+				<p class="text-red-100 text-sm mb-4">
+					This permanently deletes your account and all related data.
+					This action cannot be undone.
+				</p>
+				<form id="delete-form" class="space-y-4">
+					<div
+						id="delete-message"
+						class="hidden px-4 py-3 rounded-lg text-sm"
+					>
+					</div>
+					<div>
+						<label
+							for="delete-confirm"
+							class="block text-sm font-medium text-red-100 mb-2"
+							>Type DELETE to confirm</label
+						>
+						<input
+							type="text"
+							id="delete-confirm"
+							required
+							class="w-full max-w-xs px-4 py-3 bg-red-950/40 border border-red-300/60 rounded-lg text-white focus:outline-none focus:border-red-200 focus:ring-1 focus:ring-red-200"
+						/>
+					</div>
+					<button
+						type="submit"
+						id="delete-submit"
+						class="bg-red-600 text-white font-semibold px-6 py-3 rounded-lg border border-red-300/70 shadow-[0_0_0_1px_rgba(127,29,29,0.35)] hover:bg-red-500 transition-colors disabled:opacity-50"
+					>
+						Delete My Account
+					</button>
+				</form>
+			</section>
+		</div>
+	</main>
+</Layout>
+
+<script>
+	const setMessage = (el: HTMLElement | null, ok: boolean, text: string) => {
+		if (!el) return;
+		el.className = `px-4 py-3 rounded-lg text-sm ${ok ? "bg-green-500/20 border border-green-400/40 text-green-200" : "bg-red-500/20 border border-red-400/40 text-red-200"}`;
+		el.textContent = text;
+		el.classList.remove("hidden");
+	};
+
+	const profileForm = document.getElementById(
+		"profile-form",
+	) as HTMLFormElement | null;
+	const profileSubmit = document.getElementById(
+		"profile-submit",
+	) as HTMLButtonElement | null;
+	const profileMessage = document.getElementById(
+		"profile-message",
+	) as HTMLElement | null;
+	const initialEmail =
+		(document.getElementById("initial-email") as HTMLInputElement | null)
+			?.value ?? "";
+
+	profileForm?.addEventListener("submit", async (e) => {
+		e.preventDefault();
+		if (!profileSubmit) return;
+
+		profileSubmit.disabled = true;
+		profileMessage?.classList.add("hidden");
+		const name = (
+			document.getElementById("name") as HTMLInputElement
+		).value.trim();
+		const email = (
+			document.getElementById("email") as HTMLInputElement
+		).value.trim();
+
+		try {
+			const response = await fetch("/api/auth/update-user", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ name, email }),
+			});
+			const data = await response.json().catch(() => ({}));
+			if (!response.ok)
+				throw new Error(data.message || "Failed to update profile");
+
+			if (email.toLowerCase() !== initialEmail.toLowerCase()) {
+				await fetch("/api/auth/send-verification-email", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						email,
+						callbackURL: "/auth/dashboard",
+					}),
+				});
+				setMessage(
+					profileMessage,
+					true,
+					"Profile updated. Please verify your new email address from the verification message.",
+				);
+			} else {
+				setMessage(
+					profileMessage,
+					true,
+					"Profile updated successfully.",
+				);
+			}
+		} catch (error: unknown) {
+			const msg =
+				error instanceof Error
+					? error.message
+					: "Failed to update profile";
+			setMessage(profileMessage, false, msg);
+		} finally {
+			profileSubmit.disabled = false;
+		}
+	});
+
+	const passwordForm = document.getElementById(
+		"password-form",
+	) as HTMLFormElement | null;
+	const passwordSubmit = document.getElementById(
+		"password-submit",
+	) as HTMLButtonElement | null;
+	const passwordMessage = document.getElementById(
+		"password-message",
+	) as HTMLElement | null;
+
+	passwordForm?.addEventListener("submit", async (e) => {
+		e.preventDefault();
+		if (!passwordSubmit) return;
+
+		passwordSubmit.disabled = true;
+		passwordMessage?.classList.add("hidden");
+		const currentPassword = (
+			document.getElementById("current-password") as HTMLInputElement
+		).value;
+		const newPassword = (
+			document.getElementById("new-password") as HTMLInputElement
+		).value;
+		const confirmPassword = (
+			document.getElementById("confirm-password") as HTMLInputElement
+		).value;
+
+		if (newPassword !== confirmPassword) {
+			setMessage(
+				passwordMessage,
+				false,
+				"New password and confirmation do not match.",
+			);
+			passwordSubmit.disabled = false;
+			return;
+		}
+
+		try {
+			const response = await fetch("/api/auth/change-password", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ currentPassword, newPassword }),
+			});
+			const data = await response.json().catch(() => ({}));
+			if (!response.ok)
+				throw new Error(data.message || "Failed to change password");
+			passwordForm.reset();
+			setMessage(passwordMessage, true, "Password updated successfully.");
+		} catch (error: unknown) {
+			const msg =
+				error instanceof Error
+					? error.message
+					: "Failed to change password";
+			setMessage(passwordMessage, false, msg);
+		} finally {
+			passwordSubmit.disabled = false;
+		}
+	});
+
+	const deleteForm = document.getElementById(
+		"delete-form",
+	) as HTMLFormElement | null;
+	const deleteSubmit = document.getElementById(
+		"delete-submit",
+	) as HTMLButtonElement | null;
+	const deleteMessage = document.getElementById(
+		"delete-message",
+	) as HTMLElement | null;
+
+	deleteForm?.addEventListener("submit", async (e) => {
+		e.preventDefault();
+		if (!deleteSubmit) return;
+
+		const confirmation = (
+			document.getElementById("delete-confirm") as HTMLInputElement
+		).value.trim();
+		if (confirmation !== "DELETE") {
+			setMessage(deleteMessage, false, "Type DELETE exactly to confirm.");
+			return;
+		}
+
+		deleteSubmit.disabled = true;
+		deleteMessage?.classList.add("hidden");
+		try {
+			const response = await fetch("/api/auth/delete-user", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ callbackURL: "/" }),
+			});
+			const data = await response.json().catch(() => ({}));
+			if (!response.ok)
+				throw new Error(data.message || "Failed to delete account");
+			window.location.href = "/";
+		} catch (error: unknown) {
+			const msg =
+				error instanceof Error
+					? error.message
+					: "Failed to delete account";
+			setMessage(deleteMessage, false, msg);
+			deleteSubmit.disabled = false;
+		}
+	});
+</script>

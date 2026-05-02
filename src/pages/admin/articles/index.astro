@@ -1,0 +1,412 @@
+---
+export const prerender = false;
+import Layout from "../../../layouts/Layout.astro";
+import { prisma } from "../../../lib/prisma";
+import { auth } from "../../../lib/auth";
+
+const user = Astro.locals.user;
+
+if (!user) {
+	return Astro.redirect("/auth/login");
+}
+
+const roles = (user.role || "user").split(",");
+const canReview = roles.includes("admin") || roles.includes("reviewer");
+if (!canReview) {
+	return Astro.redirect("/auth/dashboard");
+}
+
+const isAdmin = roles.includes("admin");
+
+const filterParam = new URL(Astro.request.url).searchParams.get("filter") || "";
+const pageParam = parseInt(
+	new URL(Astro.request.url).searchParams.get("page") || "1",
+);
+const limit = 20;
+
+const where: any = {};
+if (filterParam === "pending") where.status = "pending";
+else if (filterParam === "approved") where.status = "approved";
+else if (filterParam === "rejected") where.status = "rejected";
+
+const [drafts, total] = await Promise.all([
+	prisma.articleDraft.findMany({
+		where,
+		orderBy: { updatedAt: "desc" },
+		take: limit,
+		skip: (pageParam - 1) * limit,
+		include: { author: { select: { name: true, email: true } } },
+	}),
+	prisma.articleDraft.count({ where }),
+]);
+
+const totalPages = Math.ceil(total / limit);
+const currentPage = pageParam;
+
+const pendingCount = await prisma.articleDraft.count({
+	where: { status: "pending" },
+});
+---
+
+<Layout title="Article Reviews - Admin - Furry Fediverse">
+	<main class="p-2 md:p-5 lg:px-60 2xl:px-80">
+		<div class="py-8">
+			<div class="flex items-center justify-between mb-8">
+				<div>
+					<h1 class="text-3xl font-bold text-white">
+						Article <span class="text-[#31dcb2]">Reviews</span>
+					</h1>
+					<a
+						href="/admin"
+						class="text-white/60 text-sm hover:text-[#31dcb2] transition-colors no-underline"
+					>
+						&larr; Back to Admin Dashboard
+					</a>
+				</div>
+				<span class="text-white/60 text-sm"
+					>{pendingCount} pending review</span
+				>
+			</div>
+
+			<div
+				class="bg-[#0D3559] rounded-xl p-4 border border-white/10 mb-6"
+			>
+				<div class="flex gap-2">
+					<a
+						href="/admin/articles"
+						class="px-4 py-2 rounded-lg border text-sm no-underline {filterParam === '' ? 'bg-[#31dcb2] text-[#12384b] border-[#31dcb2]' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}"
+						>All</a
+					>
+					<a
+						href="/admin/articles?filter=pending"
+						class="px-4 py-2 rounded-lg border text-sm no-underline {filterParam === 'pending' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}"
+						>Pending ({pendingCount})</a
+					>
+					<a
+						href="/admin/articles?filter=approved"
+						class="px-4 py-2 rounded-lg border text-sm no-underline {filterParam === 'approved' ? 'bg-green-500/20 text-green-300 border-green-500/50' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}"
+						>Approved</a
+					>
+					<a
+						href="/admin/articles?filter=rejected"
+						class="px-4 py-2 rounded-lg border text-sm no-underline {filterParam === 'rejected' ? 'bg-red-500/20 text-red-300 border-red-500/50' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}"
+						>Rejected</a
+					>
+				</div>
+			</div>
+
+			<div class="space-y-4">
+				{
+					drafts.map((draft) => (
+						<div class="bg-[#0D3559] rounded-xl border border-white/10 p-6">
+							<div class="flex items-start justify-between">
+								<div class="flex-1">
+									<div class="flex items-center gap-3 mb-2">
+										<h3 class="text-lg font-bold text-white">
+											{draft.title}
+										</h3>
+										<span
+											class={`px-2 py-1 rounded text-xs font-medium ${draft.status === "pending" ? "bg-yellow-500/20 text-yellow-300" : draft.status === "approved" ? "bg-green-500/20 text-green-300" : "bg-red-500/20 text-red-300"}`}
+										>
+											{draft.status}
+										</span>
+										<span class="px-2 py-1 bg-blue-500/20 text-blue-300 rounded text-xs font-medium capitalize">
+											{draft.category}
+										</span>
+									</div>
+									<div class="flex items-center gap-4 text-sm text-white/60">
+										<span>
+											By: {draft.author.name} (
+											{draft.author.email})
+										</span>
+										<span>
+											Updated:{" "}
+											{new Date(
+												draft.updatedAt,
+											).toLocaleDateString()}
+										</span>
+									</div>
+								</div>
+								<div class="flex gap-2 shrink-0 ml-4">
+									<button
+										class="open-btn px-4 py-2 bg-blue-500/20 text-blue-300 rounded-lg hover:bg-blue-500/30 transition-colors border border-blue-500/30"
+										data-draft-id={draft.id}
+										data-draft-title={draft.title}
+										data-draft-content={JSON.stringify(
+											draft.content,
+										)}
+										data-draft-status={draft.status}
+										data-draft-category={draft.category}
+										data-draft-author={draft.author.name}
+										data-draft-email={draft.author.email}
+										data-draft-updated={new Date(
+											draft.updatedAt,
+										).toLocaleDateString()}
+									>
+										Open
+									</button>
+								</div>
+							</div>
+						</div>
+					))
+				}
+				{
+					drafts.length === 0 && (
+						<div class="bg-[#0D3559] rounded-xl border border-white/10 p-8 text-center text-white/60">
+							No drafts found
+						</div>
+					)
+				}
+			</div>
+
+			{
+				totalPages > 1 && (
+					<div class="flex items-center justify-between mt-6">
+						<p class="text-white/60 text-sm">
+							Showing {(currentPage - 1) * limit + 1} to{" "}
+							{Math.min(currentPage * limit, total)} of {total}
+						</p>
+						<div class="flex gap-2">
+							{currentPage > 1 && (
+								<a
+									href={`/admin/articles?${filterParam ? `filter=${filterParam}&` : ""}page=${currentPage - 1}`}
+									class="px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors no-underline"
+								>
+									Previous
+								</a>
+							)}
+							{currentPage < totalPages && (
+								<a
+									href={`/admin/articles?${filterParam ? `filter=${filterParam}&` : ""}page=${currentPage + 1}`}
+									class="px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors no-underline"
+								>
+									Next
+								</a>
+							)}
+						</div>
+					</div>
+				)
+			}
+		</div>
+	</main>
+</Layout>
+
+<div
+	id="draft-modal"
+	class="fixed inset-0 z-40 hidden items-center justify-center bg-black/70"
+>
+	<div
+		class="bg-[#0D3559] rounded-xl border border-white/20 w-full max-w-4xl max-h-[90vh] mx-4 flex flex-col shadow-2xl"
+	>
+		<div
+			class="flex items-center justify-between p-6 border-b border-white/10"
+		>
+			<div>
+				<h2 id="modal-title" class="text-2xl font-bold text-white"></h2>
+				<div class="flex items-center gap-3 mt-2">
+					<span
+						id="modal-status"
+						class="px-2 py-1 rounded text-xs font-medium"></span>
+					<span
+						id="modal-category"
+						class="px-2 py-1 bg-blue-500/20 text-blue-300 rounded text-xs font-medium capitalize"
+					></span>
+				</div>
+			</div>
+			<button
+				id="modal-close"
+				class="text-white/60 hover:text-white text-2xl transition-colors"
+				>&times;</button
+			>
+		</div>
+		<div class="p-6 overflow-y-auto flex-1">
+			<div class="flex items-center gap-4 text-sm text-white/60 mb-4">
+				<span id="modal-author"></span>
+				<span id="modal-updated"></span>
+			</div>
+			<div
+				id="modal-content"
+				class="text-white/80 prose prose-sm max-w-none"
+			>
+			</div>
+		</div>
+		<div class="flex gap-3 p-6 border-t border-white/10 justify-end">
+			<button
+				id="modal-delete-btn"
+				class="hidden px-4 py-2 bg-red-600/30 text-red-300 rounded-lg hover:bg-red-600/40 transition-colors border border-red-500/50"
+			>
+				Delete
+			</button>
+			<button
+				id="modal-reject-btn"
+				class="hidden px-4 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-colors border border-red-500/30"
+			>
+				Reject
+			</button>
+			<button
+				id="modal-approve-btn"
+				class="hidden px-4 py-2 bg-green-500/20 text-green-300 rounded-lg hover:bg-green-500/30 transition-colors border border-green-500/30"
+			>
+				Approve
+			</button>
+		</div>
+	</div>
+</div>
+
+<script is:inline>
+	function showToast(message, type = "success") {
+		const toastContainer = document.getElementById("toast-container");
+		const toast = document.createElement("div");
+		toast.className = `px-4 py-3 rounded-lg shadow-lg text-white text-sm ${type === "success" ? "bg-green-600" : "bg-red-600"}`;
+		toast.textContent = message;
+		toastContainer?.appendChild(toast);
+		setTimeout(() => toast.remove(), 3000);
+	}
+
+	function openModal(draft) {
+		const modal = document.getElementById("draft-modal");
+		document.getElementById("modal-title").textContent = draft.title;
+
+		const statusEl = document.getElementById("modal-status");
+		statusEl.textContent = draft.status;
+		statusEl.className = `px-2 py-1 rounded text-xs font-medium ${draft.status === "pending" ? "bg-yellow-500/20 text-yellow-300" : draft.status === "approved" ? "bg-green-500/20 text-green-300" : "bg-red-500/20 text-red-300"}`;
+
+		document.getElementById("modal-category").textContent = draft.category;
+		document.getElementById("modal-author").textContent =
+			`By: ${draft.authorName} (${draft.authorEmail})`;
+		document.getElementById("modal-updated").textContent =
+			`Updated: ${draft.updated}`;
+		document.getElementById("modal-content").innerHTML = draft.content;
+
+		const approveBtn = document.getElementById("modal-approve-btn");
+		const rejectBtn = document.getElementById("modal-reject-btn");
+		const deleteBtn = document.getElementById("modal-delete-btn");
+
+		if (draft.status === "pending") {
+			approveBtn.classList.remove("hidden");
+			rejectBtn.classList.remove("hidden");
+			deleteBtn.classList.remove("hidden");
+			approveBtn.dataset.draftId = draft.id;
+			rejectBtn.dataset.draftId = draft.id;
+			deleteBtn.dataset.draftId = draft.id;
+		} else {
+			approveBtn.classList.add("hidden");
+			rejectBtn.classList.add("hidden");
+			deleteBtn.classList.remove("hidden");
+			deleteBtn.dataset.draftId = draft.id;
+		}
+
+		modal.classList.remove("hidden");
+		modal.classList.add("flex");
+	}
+
+	function closeModal() {
+		const modal = document.getElementById("draft-modal");
+		modal.classList.add("hidden");
+		modal.classList.remove("flex");
+	}
+
+	async function reviewDraft(draftId, action) {
+		const res = await fetch(`/api/learn/${action}?id=${draftId}`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+		});
+		const data = await res.json();
+		if (!res.ok) {
+			throw new Error(data.error || "Action failed");
+		}
+		return data;
+	}
+
+	document.addEventListener("click", function (e) {
+		const openBtn = e.target.closest(".open-btn");
+		if (openBtn) {
+			const draft = {
+				id: openBtn.dataset.draftId,
+				title: openBtn.dataset.draftTitle,
+				content: JSON.parse(openBtn.dataset.draftContent),
+				status: openBtn.dataset.draftStatus,
+				category: openBtn.dataset.draftCategory,
+				authorName: openBtn.dataset.draftAuthor,
+				authorEmail: openBtn.dataset.draftEmail,
+				updated: openBtn.dataset.draftUpdated,
+			};
+			openModal(draft);
+			return;
+		}
+
+		if (e.target.id === "modal-close" || e.target.id === "draft-modal") {
+			closeModal();
+			return;
+		}
+
+		const modalBtn = e.target.closest(
+			"#modal-approve-btn, #modal-reject-btn, #modal-delete-btn",
+		);
+		if (modalBtn) {
+			const draftId = modalBtn.dataset.draftId;
+			const isDelete = modalBtn.id === "modal-delete-btn";
+			const action =
+				modalBtn.id === "modal-approve-btn" ? "approve" : "reject";
+
+			modalBtn.classList.add("opacity-50", "pointer-events-none");
+
+			const handleResult = (success) => {
+				showToast(
+					success
+						? `Article ${isDelete ? "deleted" : action + "ed"}`
+						: `Failed to ${isDelete ? "delete" : action}`,
+					success ? "success" : "error",
+				);
+				setTimeout(() => window.location.reload(), 500);
+			};
+
+			if (isDelete) {
+				if (
+					!confirm(
+						"Are you sure you want to delete this article draft?",
+					)
+				) {
+					modalBtn.classList.remove(
+						"opacity-50",
+						"pointer-events-none",
+					);
+					return;
+				}
+				fetch(`/api/learn/delete?id=${draftId}`, { method: "DELETE" })
+					.then((res) => res.json().then((data) => ({ res, data })))
+					.then(({ res, data }) => {
+						if (!res.ok)
+							throw new Error(data.error || "Delete failed");
+						handleResult(true);
+					})
+					.catch((err) => {
+						showToast(err.message || "Failed to delete", "error");
+						modalBtn.classList.remove(
+							"opacity-50",
+							"pointer-events-none",
+						);
+					});
+			} else {
+				reviewDraft(draftId, action)
+					.then(() => handleResult(true))
+					.catch((err) => {
+						showToast(
+							err.message || `Failed to ${action}`,
+							"error",
+						);
+						modalBtn.classList.remove(
+							"opacity-50",
+							"pointer-events-none",
+						);
+					});
+			}
+		}
+	});
+
+	document.addEventListener("keydown", function (e) {
+		if (e.key === "Escape") {
+			closeModal();
+		}
+	});
+</script>

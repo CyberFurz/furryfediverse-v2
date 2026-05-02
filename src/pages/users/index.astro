@@ -1,0 +1,26 @@
+---
+export const prerender = false;
+import Layout from "../../layouts/Layout.astro";
+import UserDirectoryList from "../../components/UserDirectoryList";
+---
+
+<Layout title="User Directory - Furry Fediverse">
+  <main class="p-2 md:p-5 lg:px-60 2xl:px-80">
+    <div class="flex flex-col">
+      <div class="flex items-center gap-2 text-sm bg-[#31dcb2] px-4 py-2 rounded-md">
+        <a href="/" class="text-[#12384b] font-semibold">Home</a>
+        <svg class="w-4 h-4 text-[#12384b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+        <span class="text-[#12384b] font-semibold">User Directory</span>
+      </div>
+
+      <div class="py-6">
+        <h1 class="font-bold text-2xl text-white">Linked Profile Directory</h1>
+        <p class="text-white/50 text-sm mt-1 mb-6">Discover community members by profile details and hashtags.</p>
+
+        <UserDirectoryList client:load />
+      </div>
+    </div>
+  </main>
+</Layout>

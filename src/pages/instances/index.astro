@@ -2,6 +2,7 @@
 export const prerender = false;
 import Layout from "../../layouts/Layout.astro";
 import InstanceList from "../../components/InstanceList";
+const user = Astro.locals.user;
 ---
 
 <Layout title="Instance Directory - Furry Fediverse">
@@ -23,21 +24,34 @@ import InstanceList from "../../components/InstanceList";
                         stroke-width="2"
                         d="M9 5l7 7-7 7"></path>
                 </svg>
-                <span class="text-[#12384b] font-semibold">Instance Directory</span>
+                <span class="text-[#12384b] font-semibold"
+                    >Instance Directory</span
+                >
             </div>
 
             <div class="py-6">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                <div
+                    class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6"
+                >
                     <div>
-                        <h1 class="font-bold text-2xl text-white">Fediverse Instance Directory</h1>
-                        <p class="text-white/50 text-sm mt-1">Browse and discover furry-friendly fediverse instances</p>
+                        <h1 class="font-bold text-2xl text-white">
+                            Fediverse Instance Directory
+                        </h1>
+                        <p class="text-white/50 text-sm mt-1">
+                            Browse and discover furry-friendly fediverse
+                            instances
+                        </p>
                     </div>
-                    <a
-                        href="/instances/manage"
-                        class="flex-shrink-0 bg-[#31dcb2] text-[#12384b] font-semibold px-4 py-2 rounded-lg hover:bg-[#28c4a0] transition-colors text-center no-underline text-sm"
-                    >
-                        Manage Instances
-                    </a>
+                    {
+                        user ? (
+                            <a
+                                href="/instances/manage"
+                                class="shrink-0 bg-[#31dcb2] text-[#12384b] font-semibold px-4 py-2 rounded-lg hover:bg-[#28c4a0] transition-colors text-center no-underline text-sm"
+                            >
+                                Manage Instances
+                            </a>
+                        ) : null
+                    }
                 </div>
 
                 <InstanceList client:load />

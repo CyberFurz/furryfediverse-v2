@@ -20,12 +20,70 @@ model User {
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  role          String?
+  banned        Boolean   @default(false)
+  banReason     String?
+  banExpires    DateTime? 
   sessions      Session[]
   accounts      Account[]
   instances     Instance[]
+  articles      Article[]
+  articleDrafts ArticleDraft[]
+  linkedProfiles LinkedProfile[]
 
   @@unique([email])
   @@map("user")
+}
+
+model LinkedProfile {
+  id                String                @id @default(cuid())
+  userId            String
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform          String
+  instanceDomain    String
+  externalAccountId String
+  accessToken       String
+  refreshToken      String?
+  tokenExpiresAt    DateTime?
+  scope             String
+  username          String
+  acct              String
+  displayName       String?
+  avatarUrl         String?
+  headerUrl         String?
+  bio               String?
+  followersCount    Int                   @default(0)
+  followingCount    Int                   @default(0)
+  statusesCount     Int                   @default(0)
+  profileUrl        String?
+  lastSyncedAt      DateTime?
+  syncError         String?
+  isActive          Boolean               @default(true)
+  isPrimaryNsfw     Boolean               @default(false)
+  isPrimaryProfile  Boolean               @default(false)
+  hashtags          LinkedProfileHashtag[]
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  @@unique([platform, instanceDomain, externalAccountId])
+  @@index([userId])
+  @@index([platform])
+  @@index([acct])
+  @@map("linked_profile")
+}
+
+model LinkedProfileHashtag {
+  id              String        @id @default(cuid())
+  linkedProfileId String
+  linkedProfile   LinkedProfile @relation(fields: [linkedProfileId], references: [id], onDelete: Cascade)
+  tag             String
+  normalizedTag   String
+  createdAt       DateTime      @default(now())
+
+  @@unique([linkedProfileId, normalizedTag])
+  @@index([normalizedTag])
+  @@index([linkedProfileId])
+  @@map("linked_profile_hashtag")
 }
 
 model Session {
@@ -36,6 +94,7 @@ model Session {
   updatedAt DateTime @updatedAt
   ipAddress String?
   userAgent String?
+  impersonatedBy String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -116,4 +175,39 @@ model InstanceApiKey {
 
   @@index([apiKey])
   @@map("instance_api_key")
+}
+
+model Article {
+  id         String         @id @default(cuid())
+  title      String
+  content    String
+  category   String         // "self-hosting", "how-to", "other"
+  authorId   String
+  author     User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  drafts     ArticleDraft[]
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([authorId])
+  @@index([category])
+  @@map("article")
+}
+
+model ArticleDraft {
+  id         String   @id @default(cuid())
+  articleId  String?  // null for new submissions, set when linked to published article
+  article    Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  title      String
+  content    String
+  category   String   // "self-hosting", "how-to", "other"
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  status     String   @default("pending") // "draft", "pending", "approved", "rejected"
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([authorId])
+  @@index([articleId])
+  @@index([status])
+  @@map("article_draft")
 }

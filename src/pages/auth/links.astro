@@ -1,0 +1,521 @@
+---
+export const prerender = false;
+import Layout from "../../layouts/Layout.astro";
+
+const user = Astro.locals.user;
+
+if (!user) {
+	return Astro.redirect("/auth/login");
+}
+
+const providers = [
+	{ key: "mastodon", label: "Mastodon" },
+	{ key: "pleroma", label: "Pleroma / Akkoma" },
+	{ key: "pixelfed", label: "Pixelfed" },
+	{ key: "firefish", label: "Firefish / Iceshrimp" },
+	{ key: "gotosocial", label: "GoToSocial" },
+];
+---
+
+<Layout title="Linked Accounts - Furry Fediverse">
+	<main class="p-2 md:p-5 lg:px-60 2xl:px-80">
+		<div
+			class="flex items-center gap-2 text-sm bg-[#31dcb2] px-4 py-2 rounded-md"
+		>
+			<a href="/" class="text-[#12384b] font-semibold">Home</a>
+			<svg
+				class="w-4 h-4 text-[#12384b]"
+				fill="none"
+				stroke="currentColor"
+				viewBox="0 0 24 24"
+			>
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					stroke-width="2"
+					d="M9 5l7 7-7 7"></path>
+			</svg>
+			<a href="/auth/dashboard" class="text-[#12384b] font-semibold"
+				>User Dashboard</a
+			>
+			<svg
+				class="w-4 h-4 text-[#12384b]"
+				fill="none"
+				stroke="currentColor"
+				viewBox="0 0 24 24"
+			>
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					stroke-width="2"
+					d="M9 5l7 7-7 7"></path>
+			</svg>
+			<a href="/auth/links" class="text-[#12384b] font-semibold"
+				>Linked Accounts</a
+			>
+		</div>
+		<div class="py-5">
+			<h1 class="text-3xl font-bold text-white mb-8">
+				Linked <span class="text-[#31dcb2]">Accounts</span>
+			</h1>
+
+			<div
+				id="error-message"
+				class="hidden bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg text-sm mb-6"
+			>
+			</div>
+			<div
+				id="success-message"
+				class="hidden bg-green-500/20 border border-green-500/50 text-green-300 px-4 py-3 rounded-lg text-sm mb-6"
+			>
+			</div>
+
+			<div
+				class="bg-[#0D3559] rounded-xl p-6 border border-white/10 mb-8"
+			>
+				<h2 class="text-xl font-bold text-white mb-4">
+					Link a New Account
+				</h2>
+				<form id="link-form" class="space-y-4">
+					<div>
+						<label
+							for="platform"
+							class="block text-sm font-medium text-white/80 mb-2"
+						>
+							Platform
+						</label>
+						<select
+							id="platform"
+							name="platform"
+							required
+							class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+						>
+							{
+								providers.map((p) => (
+									<option value={p.key}>{p.label}</option>
+								))
+							}
+						</select>
+					</div>
+					<div>
+						<label
+							for="instanceDomain"
+							class="block text-sm font-medium text-white/80 mb-2"
+						>
+							Instance Domain
+						</label>
+						<input
+							type="text"
+							id="instanceDomain"
+							name="instanceDomain"
+							required
+							placeholder="mastodon.social"
+							class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
+						/>
+					</div>
+					<div
+						class="bg-amber-500/10 border border-amber-400/40 rounded-lg p-3"
+					>
+						<div class="flex items-start gap-3">
+							<div class="text-amber-300 mt-0.5">⚠️</div>
+							<div class="flex-1">
+								<p
+									class="text-amber-200 text-sm font-semibold mb-1"
+								>
+									Content Safety Setting
+								</p>
+								<label
+									class="flex items-center gap-3 text-sm text-white/90"
+								>
+									<input
+										type="checkbox"
+										id="isPrimaryNsfw"
+										name="isPrimaryNsfw"
+										class="w-4 h-4 rounded border-white/30 bg-white/5 text-[#31dcb2] focus:ring-[#31dcb2]"
+									/>
+									<span
+										>This account primarily posts NSFW
+										content</span
+									>
+								</label>
+								<p class="text-amber-100/80 text-xs mt-1">
+									Marking this helps people filter directory
+									results based on content preference.
+								</p>
+							</div>
+						</div>
+					</div>
+					<button
+						type="submit"
+						id="link-btn"
+						class="bg-[#31dcb2] text-[#12384b] font-semibold px-6 py-3 rounded-lg hover:bg-[#28c4a0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						<span id="link-btn-text">Start Linking</span>
+						<span id="link-btn-loading" class="hidden">
+							<svg
+								class="animate-spin h-5 w-5 inline mr-2"
+								xmlns="http://www.w3.org/2000/svg"
+								fill="none"
+								viewBox="0 0 24 24"
+							>
+								<circle
+									class="opacity-25"
+									cx="12"
+									cy="12"
+									r="10"
+									stroke="currentColor"
+									stroke-width="4"></circle>
+								<path
+									class="opacity-75"
+									fill="currentColor"
+									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+								></path>
+							</svg>
+							Connecting...
+						</span>
+					</button>
+				</form>
+			</div>
+
+			<div
+				class="bg-[#0D3559] rounded-xl p-6 border border-white/10 mb-8"
+			>
+				<h2 class="text-xl font-bold text-white mb-4">
+					Your Linked Accounts
+				</h2>
+				<div id="linked-accounts-list" class="space-y-4">
+					<p class="text-white/60 text-sm">Loading...</p>
+				</div>
+			</div>
+		</div>
+	</main>
+</Layout>
+
+<script>
+	const platformIcons: Record<string, string> = {
+		mastodon: "🐘",
+		pleroma: "🦄",
+		pixelfed: "📸",
+		firefish: "🐟",
+		gotosocial: "👻",
+	};
+
+	const linkForm = document.getElementById("link-form") as HTMLFormElement;
+	const linkBtn = document.getElementById("link-btn") as HTMLButtonElement;
+	const linkBtnText = document.getElementById("link-btn-text");
+	const linkBtnLoading = document.getElementById("link-btn-loading");
+	const linkedAccountsList = document.getElementById("linked-accounts-list");
+	const errorMessage = document.getElementById("error-message");
+	const successMessage = document.getElementById("success-message");
+
+	function showMsg(msg: string, type: "error" | "success") {
+		const el = type === "error" ? errorMessage : successMessage;
+		const other = type === "error" ? successMessage : errorMessage;
+		el!.textContent = msg;
+		el!.classList.remove("hidden");
+		other!.classList.add("hidden");
+	}
+
+	function hideMsgs() {
+		errorMessage?.classList.add("hidden");
+		successMessage?.classList.add("hidden");
+	}
+
+	async function loadLinkedAccounts() {
+		try {
+			const res = await fetch("/api/auth/linked-accounts");
+			if (!res.ok) {
+				linkedAccountsList!.innerHTML =
+					'<p class="text-white/60 text-sm">Failed to load accounts.</p>';
+				return;
+			}
+			const json = await res.json();
+			const accounts = json.data as Array<{
+				id: string;
+				platform: string;
+				instanceDomain: string;
+				acct: string;
+				displayName: string | null;
+				avatarUrl: string | null;
+				profileUrl: string | null;
+				followersCount: number;
+				lastSyncedAt: string | null;
+				isActive: boolean;
+				isPrimaryNsfw: boolean;
+				isPrimaryProfile: boolean;
+				hashtags: Array<{
+					id: string;
+					tag: string;
+					normalizedTag: string;
+				}>;
+			}>;
+
+			if (accounts.length === 0) {
+				linkedAccountsList!.innerHTML =
+					'<p class="text-white/60 text-sm">No linked accounts yet.</p>';
+				return;
+			}
+
+			linkedAccountsList!.innerHTML = accounts
+				.map(
+					(a) => `
+				<div class="bg-white/5 rounded-lg p-4 border border-white/10" data-id="${a.id}">
+					<div class="flex items-start justify-between gap-4">
+						<div class="flex items-center gap-3">
+							${a.avatarUrl ? `<img src="${a.avatarUrl}" alt="" class="w-10 h-10 rounded-full object-cover" />` : `<div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-lg">${platformIcons[a.platform] ?? "?"}</div>`}
+							<div>
+								<p class="text-white font-semibold">${a.displayName || a.acct}</p>
+								<p class="text-white/60 text-sm">@${a.acct}@${a.instanceDomain} · ${platformIcons[a.platform] ?? ""} ${a.platform}${a.isPrimaryNsfw ? " · NSFW" : ""}${a.isPrimaryProfile ? " · Primary Avatar" : ""}</p>
+								<a href="${a.profileUrl}" target="_blank" rel="noopener" class="text-[#31dcb2] text-sm hover:underline no-underline">View Profile</a>
+							</div>
+						</div>
+						<div class="flex items-center gap-2 shrink-0">
+							<button class="sync-btn text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg transition-colors" data-id="${a.id}">Sync</button>
+							<button class="toggle-primary-profile-btn text-xs ${a.isPrimaryProfile ? "bg-[#31dcb2]/25 text-[#9ff0dc] border border-[#31dcb2]/50" : "bg-white/10 text-white border border-white/20"} hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors" data-id="${a.id}" data-primary-profile="${a.isPrimaryProfile ? "1" : "0"}">${a.isPrimaryProfile ? "Primary Avatar: On" : "Set Primary Avatar"}</button>
+							<button class="toggle-nsfw-btn text-xs ${a.isPrimaryNsfw ? "bg-amber-500/25 text-amber-200 border border-amber-400/40" : "bg-white/10 text-white border border-white/20"} hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors" data-id="${a.id}" data-nsfw="${a.isPrimaryNsfw ? "1" : "0"}">${a.isPrimaryNsfw ? "NSFW: On" : "NSFW: Off"}</button>
+							<button class="unlink-btn text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 px-3 py-1.5 rounded-lg transition-colors border border-red-500/30" data-id="${a.id}">Unlink</button>
+						</div>
+					</div>
+					<div class="mt-3 pt-3 border-t border-white/10">
+						<p class="text-white/60 text-xs mb-2">Searchable Tags <span class="text-white/40">(click to remove)</span></p>
+						<div class="flex flex-wrap gap-2 mb-2 hashtag-chips" data-id="${a.id}">
+							${a.hashtags.map((h) => `<span class="hashtag-chip inline-flex items-center gap-1 bg-[#31dcb2]/10 text-[#31dcb2] text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-red-500/20 hover:text-red-300 transition-colors" data-tag-id="${h.id}" data-profile-id="${a.id}">#${h.normalizedTag}</span>`).join("")}
+						</div>
+						<form class="add-tag-form flex gap-2" data-id="${a.id}">
+							<input type="text" placeholder="Add tag..." class="add-tag-input flex-1 px-3 py-1.5 bg-white/5 border border-white/20 rounded-lg text-white text-sm placeholder-white/40 focus:outline-none focus:border-[#31dcb2]" />
+							<button type="submit" class="add-tag-btn text-xs bg-[#31dcb2]/20 hover:bg-[#31dcb2]/30 text-[#31dcb2] px-3 py-1.5 rounded-lg transition-colors">Add</button>
+						</form>
+					</div>
+				</div>
+			`,
+				)
+				.join("");
+		} catch {
+			linkedAccountsList!.innerHTML =
+				'<p class="text-white/60 text-sm">Failed to load accounts.</p>';
+		}
+	}
+
+	linkForm?.addEventListener("submit", async (e) => {
+		e.preventDefault();
+		hideMsgs();
+
+		const platform = (
+			document.getElementById("platform") as HTMLSelectElement
+		).value;
+		const instanceDomain = (
+			document.getElementById("instanceDomain") as HTMLInputElement
+		).value.trim();
+		const isPrimaryNsfw = (
+			document.getElementById("isPrimaryNsfw") as HTMLInputElement
+		).checked;
+
+		linkBtn.disabled = true;
+		linkBtnText?.classList.add("hidden");
+		linkBtnLoading?.classList.remove("hidden");
+
+		try {
+			const res = await fetch("/api/auth/link/start", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					platform,
+					instanceDomain,
+					isPrimaryNsfw,
+				}),
+			});
+			const data = await res.json();
+
+			if (!res.ok) {
+				throw new Error(data.error || "Failed to start linking");
+			}
+
+			window.location.href = data.authUrl;
+		} catch (error: unknown) {
+			const msg =
+				error instanceof Error ? error.message : "An error occurred";
+			showMsg(msg, "error");
+			linkBtn.disabled = false;
+			linkBtnText?.classList.remove("hidden");
+			linkBtnLoading?.classList.add("hidden");
+		}
+	});
+
+	linkedAccountsList?.addEventListener("click", async (e) => {
+		const target = e.target as HTMLElement;
+		const syncBtn = target.closest(".sync-btn") as HTMLButtonElement | null;
+		const togglePrimaryProfileBtn = target.closest(
+			".toggle-primary-profile-btn",
+		) as HTMLButtonElement | null;
+		const toggleNsfwBtn = target.closest(
+			".toggle-nsfw-btn",
+		) as HTMLButtonElement | null;
+		const unlinkBtn = target.closest(
+			".unlink-btn",
+		) as HTMLButtonElement | null;
+		const hashtagChip = target.closest(
+			".hashtag-chip",
+		) as HTMLElement | null;
+
+		if (syncBtn) {
+			const id = syncBtn.dataset.id!;
+			syncBtn.disabled = true;
+			syncBtn.textContent = "Syncing...";
+			try {
+				const res = await fetch(
+					`/api/auth/linked-accounts/${id}/sync`,
+					{ method: "POST" },
+				);
+				if (!res.ok) {
+					const d = await res.json();
+					throw new Error(d.error || "Sync failed");
+				}
+				showMsg("Profile synced successfully!", "success");
+				await loadLinkedAccounts();
+			} catch (error: unknown) {
+				const msg =
+					error instanceof Error ? error.message : "Sync failed";
+				showMsg(msg, "error");
+			}
+			syncBtn.disabled = false;
+			syncBtn.textContent = "Sync";
+		}
+
+		if (toggleNsfwBtn) {
+			const id = toggleNsfwBtn.dataset.id!;
+			const current = toggleNsfwBtn.dataset.nsfw === "1";
+			toggleNsfwBtn.disabled = true;
+			toggleNsfwBtn.textContent = "Updating...";
+			try {
+				const res = await fetch(`/api/auth/linked-accounts/${id}`, {
+					method: "PATCH",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ isPrimaryNsfw: !current }),
+				});
+				const data = await res.json();
+				if (!res.ok)
+					throw new Error(
+						data.error || "Failed to update NSFW setting",
+					);
+				showMsg(
+					`NSFW setting updated: ${data.data?.isPrimaryNsfw ? "On" : "Off"}`,
+					"success",
+				);
+				await loadLinkedAccounts();
+			} catch (error: unknown) {
+				const msg =
+					error instanceof Error
+						? error.message
+						: "Failed to update NSFW setting";
+				showMsg(msg, "error");
+			}
+			toggleNsfwBtn.disabled = false;
+		}
+
+		if (togglePrimaryProfileBtn) {
+			const id = togglePrimaryProfileBtn.dataset.id!;
+			const current =
+				togglePrimaryProfileBtn.dataset.primaryProfile === "1";
+			togglePrimaryProfileBtn.disabled = true;
+			togglePrimaryProfileBtn.textContent = "Updating...";
+			try {
+				const res = await fetch(`/api/auth/linked-accounts/${id}`, {
+					method: "PATCH",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ isPrimaryProfile: !current }),
+				});
+				const data = await res.json();
+				if (!res.ok)
+					throw new Error(
+						data.error || "Failed to update primary avatar source",
+					);
+				showMsg(
+					`Primary avatar source ${data.data?.isPrimaryProfile ? "enabled" : "disabled"}.`,
+					"success",
+				);
+				await loadLinkedAccounts();
+			} catch (error: unknown) {
+				const msg =
+					error instanceof Error
+						? error.message
+						: "Failed to update primary avatar source";
+				showMsg(msg, "error");
+			}
+			togglePrimaryProfileBtn.disabled = false;
+		}
+
+		if (unlinkBtn) {
+			const id = unlinkBtn.dataset.id!;
+			if (!confirm("Are you sure you want to unlink this account?"))
+				return;
+			unlinkBtn.disabled = true;
+			unlinkBtn.textContent = "Unlinking...";
+			try {
+				const res = await fetch(`/api/auth/linked-accounts/${id}`, {
+					method: "DELETE",
+				});
+				if (!res.ok) throw new Error("Failed to unlink");
+				showMsg("Account unlinked successfully!", "success");
+				await loadLinkedAccounts();
+			} catch {
+				showMsg("Failed to unlink account.", "error");
+			}
+			unlinkBtn.disabled = false;
+			unlinkBtn.textContent = "Unlink";
+		}
+
+		if (hashtagChip) {
+			const tagId = hashtagChip.dataset.tagId!;
+			const profileId = hashtagChip.dataset.profileId!;
+			try {
+				const res = await fetch(
+					`/api/auth/linked-accounts/${profileId}/hashtags/${tagId}`,
+					{ method: "DELETE" },
+				);
+				if (!res.ok) throw new Error("Failed to remove tag");
+				hashtagChip.remove();
+			} catch {
+				showMsg("Failed to remove tag.", "error");
+			}
+		}
+	});
+
+	linkedAccountsList?.addEventListener("submit", async (e) => {
+		const form = e.target as HTMLFormElement;
+		if (!form.classList.contains("add-tag-form")) return;
+		e.preventDefault();
+
+		const profileId = form.dataset.id!;
+		const input = form.querySelector(".add-tag-input") as HTMLInputElement;
+		const tag = input.value.trim();
+		if (!tag) return;
+
+		try {
+			const res = await fetch(
+				`/api/auth/linked-accounts/${profileId}/hashtags`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ tag }),
+				},
+			);
+			const data = await res.json();
+			if (!res.ok) throw new Error(data.error || "Failed to add tag");
+			showMsg("Tag added!", "success");
+			await loadLinkedAccounts();
+		} catch (error: unknown) {
+			const msg =
+				error instanceof Error ? error.message : "Failed to add tag";
+			showMsg(msg, "error");
+		}
+	});
+
+	const urlParams = new URLSearchParams(window.location.search);
+	const error = urlParams.get("error");
+	const success = urlParams.get("success");
+	if (error) showMsg(`Linking failed: ${error}`, "error");
+	if (success === "linked")
+		showMsg("Account linked successfully!", "success");
+
+	loadLinkedAccounts();
+</script>

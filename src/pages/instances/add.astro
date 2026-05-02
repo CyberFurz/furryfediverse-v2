@@ -367,6 +367,7 @@ if (!user) {
             if (instanceType === "misskey" && !adminUsername) {
                 errorMessage.textContent = "Admin username is required for Misskey instances";
                 errorMessage.classList.remove("hidden");
+                document.getElementById("add-instance-form").scrollIntoView({ behavior: "smooth", block: "start" });
                 return;
             }
 
@@ -401,6 +402,8 @@ if (!user) {
                 successMessage.textContent =
                     data.message || "Successfully added " + data.instance.title + "!";
                 successMessage.classList.remove("hidden");
+
+                document.getElementById("add-instance-form").scrollIntoView({ behavior: "smooth", block: "start" });
 
                 document.getElementById("instance-domain").value = "";
                 document.getElementById("instance-type").value = "";
