@@ -287,9 +287,15 @@ const userImage = user?.image || null;
                             <>
                                 <li class="border-t border-white/10 pt-3">
                                     <div class="flex items-center gap-3 px-4 py-3">
-                                        <span class="w-10 h-10 bg-[#31dcb2] rounded-full flex items-center justify-center text-[#12384b] font-bold">
-                                            {userInitial}
-                                        </span>
+                                        {
+                                            userImage ? (
+                                                <img src={userImage} alt={userName} class="w-10 h-10 rounded-full object-cover shrink-0" />
+                                            ) : (
+                                                <span class="w-10 h-10 bg-[#31dcb2] rounded-full flex items-center justify-center text-[#12384b] font-bold shrink-0">
+                                                    {userInitial}
+                                                </span>
+                                            )
+                                        }
                                         <span class="text-white font-medium">
                                             {userName}
                                         </span>
