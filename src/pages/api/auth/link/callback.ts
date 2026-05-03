@@ -9,11 +9,14 @@ import {
 } from "../../../../lib/social/providers";
 import { downloadAndCacheProfileImage } from "../../../../lib/image-cache";
 import generator from "megalodon";
+import { auth } from "../../../../lib/auth";
+import { deriveFediversePassword } from "../../../../lib/fediverse-auth";
+import { hashPassword } from "better-auth/crypto";
 
 const SITE_URL = process.env.SITE_URL || "http://localhost:4321";
 const CLIENT_NAME = "FurryFediverse";
 
-export const GET: APIRoute = async ({ url, cookies, redirect }) => {
+export const GET: APIRoute = async ({ url, cookies, redirect, request }) => {
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const error = url.searchParams.get("error");
@@ -40,10 +43,11 @@ export const GET: APIRoute = async ({ url, cookies, redirect }) => {
 
   let platform: PlatformKey;
   let instanceDomain: string;
-  let userId: string;
+  let userId: string | null;
   let isPrimaryNsfw: boolean;
   let clientId: string;
   let clientSecret: string;
+  let flow: "link" | "register" | "login";
 
   try {
     const payload = JSON.parse(Buffer.from(cookieStateData!, "base64url").toString());
@@ -51,6 +55,7 @@ export const GET: APIRoute = async ({ url, cookies, redirect }) => {
     instanceDomain = payload.instanceDomain;
     userId = payload.userId;
     isPrimaryNsfw = Boolean(payload.isPrimaryNsfw);
+    flow = payload.flow === "register" ? "register" : payload.flow === "login" ? "login" : "link";
     clientId = payload.clientId;
     clientSecret = payload.clientSecret;
 
@@ -104,8 +109,108 @@ export const GET: APIRoute = async ({ url, cookies, redirect }) => {
       },
     });
 
-    if (existing) {
-      return redirect("/auth/links?error=already_linked");
+    if (existing && flow !== "login") {
+      return redirect(flow === "register" ? "/auth/signup/fediverse?error=already_linked" : "/auth/links?error=already_linked");
+    }
+
+    if (flow === "register") {
+      const pendingPayload = Buffer.from(
+        JSON.stringify({
+          platform,
+          instanceDomain,
+          externalAccountId: account.id,
+          accessToken,
+          refreshToken: tokenData.refresh_token ?? null,
+          tokenExpiresAt: tokenData.expires_in
+            ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+            : null,
+          scope: provider.readScope,
+          username: account.username,
+          acct: account.acct,
+          displayName: account.display_name ?? null,
+          avatarUrl: avatarUrl ?? account.avatar ?? null,
+          headerUrl: headerUrl ?? account.header ?? null,
+          bio: account.note ?? null,
+          followersCount: account.followers_count ?? 0,
+          followingCount: account.following_count ?? 0,
+          statusesCount: account.statuses_count ?? 0,
+          profileUrl: account.url ?? null,
+          isPrimaryNsfw,
+          createdAt: Date.now(),
+        })
+      ).toString("base64url");
+
+      cookies.set("fediverse_signup_pending", pendingPayload, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        maxAge: 10 * 60,
+        path: "/",
+      });
+
+      return redirect("/auth/signup/fediverse?connected=1");
+    }
+
+    if (flow === "login") {
+      const linked = await prisma.linkedProfile.findUnique({
+        where: {
+          platform_instanceDomain_externalAccountId: {
+            platform,
+            instanceDomain,
+            externalAccountId: account.id,
+          },
+        },
+        include: { user: true },
+      });
+
+      if (!linked?.user?.email) {
+        return redirect("/auth/signup/fediverse?error=account_not_linked");
+      }
+
+      const password = deriveFediversePassword({
+        platform,
+        instanceDomain,
+        externalAccountId: account.id,
+      });
+
+      const signInRes = await auth.api.signInEmail({
+        body: { email: linked.user.email, password },
+        asResponse: true,
+        headers: request.headers,
+      });
+
+      let finalSignInRes = signInRes;
+      if (!finalSignInRes.ok) {
+        const passwordHash = await hashPassword(password);
+        await prisma.account.updateMany({
+          where: {
+            userId: linked.userId,
+            providerId: "credential",
+          },
+          data: {
+            password: passwordHash,
+          },
+        });
+
+        finalSignInRes = await auth.api.signInEmail({
+          body: { email: linked.user.email, password },
+          asResponse: true,
+          headers: request.headers,
+        });
+      }
+
+      if (!finalSignInRes.ok) {
+        return redirect("/auth/login?error=fediverse_signin_failed");
+      }
+
+      const response = redirect("/auth/dashboard");
+      const setCookie = finalSignInRes.headers.get("set-cookie");
+      if (setCookie) response.headers.set("set-cookie", setCookie);
+      return response;
+    }
+
+    if (!userId) {
+      return redirect("/auth/links?error=missing_user");
     }
 
     await prisma.linkedProfile.create({

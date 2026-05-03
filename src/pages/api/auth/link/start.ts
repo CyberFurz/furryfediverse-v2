@@ -12,16 +12,17 @@ const CLIENT_NAME = "FurryFediverse";
 export const POST: APIRoute = async ({ request, cookies, locals }) => {
   const user = locals.user;
 
-  if (!user) {
-    return new Response(
-      JSON.stringify({ error: "Authentication required" }),
-      { status: 401, headers: { "Content-Type": "application/json" } }
-    );
-  }
-
   try {
     const body = await request.json();
-    const { platform, instanceDomain, isPrimaryNsfw } = body;
+    const { platform, instanceDomain, isPrimaryNsfw, flow } = body;
+    const authFlow = flow === "register" ? "register" : flow === "login" ? "login" : "link";
+
+    if (authFlow === "link" && !user) {
+      return new Response(
+        JSON.stringify({ error: "Authentication required" }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
 
     if (!platform || !instanceDomain) {
       return new Response(
@@ -53,8 +54,9 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     const statePayload = JSON.stringify({
       platform,
       instanceDomain: cleanDomain,
-      userId: user.id,
+      userId: user?.id ?? null,
       isPrimaryNsfw: Boolean(isPrimaryNsfw),
+      flow: authFlow,
       clientId: appData.client_id,
       clientSecret: appData.client_secret,
       createdAt: Date.now(),
@@ -92,8 +94,31 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     );
   } catch (error) {
     console.error("Error starting link flow:", error);
+
+    const err = error as {
+      message?: string;
+      response?: {
+        data?: {
+          error?: string;
+          error_description?: string;
+          message?: string;
+        };
+        status?: number;
+      };
+    };
+
+    const detail =
+      err.response?.data?.error_description ||
+      err.response?.data?.message ||
+      err.response?.data?.error ||
+      err.message ||
+      "unknown_error";
+
     return new Response(
-      JSON.stringify({ error: "Failed to register app with instance. Make sure the domain is correct." }),
+      JSON.stringify({
+        error: "Failed to register app with instance",
+        detail,
+      }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
