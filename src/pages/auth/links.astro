@@ -264,20 +264,20 @@ const providers = [
 				.map(
 					(a) => `
 				<div class="bg-white/5 rounded-lg p-4 border border-white/10" data-id="${a.id}">
-					<div class="flex items-start justify-between gap-4">
-						<div class="flex items-center gap-3">
+					<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+						<div class="flex items-center gap-3 min-w-0">
 							${a.avatarUrl ? `<img src="${a.avatarUrl}" alt="" class="w-10 h-10 rounded-full object-cover" />` : `<div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-lg">${platformIcons[a.platform] ?? "?"}</div>`}
-							<div>
+							<div class="min-w-0">
 								<p class="text-white font-semibold">${a.displayName || a.acct}</p>
-								<p class="text-white/60 text-sm">@${a.acct}@${a.instanceDomain} · ${platformIcons[a.platform] ?? ""} ${a.platform}${a.isPrimaryNsfw ? " · NSFW" : ""}${a.isPrimaryProfile ? " · Primary Avatar" : ""}</p>
+								<p class="text-white/60 text-sm break-words">@${a.acct}@${a.instanceDomain} · ${platformIcons[a.platform] ?? ""} ${a.platform}${a.isPrimaryNsfw ? " · NSFW" : ""}${a.isPrimaryProfile ? " · Primary Avatar" : ""}</p>
 								<a href="${a.profileUrl}" target="_blank" rel="noopener" class="text-[#31dcb2] text-sm hover:underline no-underline">View Profile</a>
 							</div>
 						</div>
-						<div class="flex items-center gap-2 shrink-0">
-							<button class="sync-btn text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg transition-colors" data-id="${a.id}">Sync</button>
-							<button class="toggle-primary-profile-btn text-xs ${a.isPrimaryProfile ? "bg-[#31dcb2]/25 text-[#9ff0dc] border border-[#31dcb2]/50" : "bg-white/10 text-white border border-white/20"} hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors" data-id="${a.id}" data-primary-profile="${a.isPrimaryProfile ? "1" : "0"}">${a.isPrimaryProfile ? "Primary Avatar: On" : "Set Primary Avatar"}</button>
-							<button class="toggle-nsfw-btn text-xs ${a.isPrimaryNsfw ? "bg-amber-500/25 text-amber-200 border border-amber-400/40" : "bg-white/10 text-white border border-white/20"} hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors" data-id="${a.id}" data-nsfw="${a.isPrimaryNsfw ? "1" : "0"}">${a.isPrimaryNsfw ? "NSFW: On" : "NSFW: Off"}</button>
-							<button class="unlink-btn text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 px-3 py-1.5 rounded-lg transition-colors border border-red-500/30" data-id="${a.id}">Unlink</button>
+						<div class="grid grid-cols-2 gap-2 w-full min-w-0 sm:w-auto sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 shrink-0">
+							<button class="sync-btn w-full min-w-0 whitespace-normal break-words text-center leading-tight text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg transition-colors" data-id="${a.id}">Sync</button>
+							<button class="toggle-primary-profile-btn w-full min-w-0 whitespace-normal break-words text-center leading-tight text-xs ${a.isPrimaryProfile ? "bg-[#31dcb2]/25 text-[#9ff0dc] border border-[#31dcb2]/50" : "bg-white/10 text-white border border-white/20"} hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors" data-id="${a.id}" data-primary-profile="${a.isPrimaryProfile ? "1" : "0"}">${a.isPrimaryProfile ? "Primary Avatar: On" : "Set Primary Avatar"}</button>
+							<button class="toggle-nsfw-btn w-full min-w-0 whitespace-normal break-words text-center leading-tight text-xs ${a.isPrimaryNsfw ? "bg-amber-500/25 text-amber-200 border border-amber-400/40" : "bg-white/10 text-white border border-white/20"} hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors" data-id="${a.id}" data-nsfw="${a.isPrimaryNsfw ? "1" : "0"}">${a.isPrimaryNsfw ? "NSFW: On" : "NSFW: Off"}</button>
+							<button class="unlink-btn w-full min-w-0 whitespace-normal break-words text-center leading-tight text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 px-3 py-1.5 rounded-lg transition-colors border border-red-500/30" data-id="${a.id}">Unlink</button>
 						</div>
 					</div>
 					<div class="mt-3 pt-3 border-t border-white/10">

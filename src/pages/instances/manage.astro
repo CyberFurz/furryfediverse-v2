@@ -125,10 +125,10 @@ const userInstances = await prisma.instance.findMany({
                                     ] ||
                                     "bg-white/10 text-white/70 border-white/30";
                                 return (
-                                    <div class="rounded-md bg-[#0D3559] border border-white/10 overflow-hidden flex">
+                                    <div class="rounded-md bg-[#0D3559] border border-white/10 overflow-hidden flex flex-col sm:flex-row">
                                         {instance.thumbnailPath ||
                                         instance.thumbnail ? (
-                                            <div class="w-80 shrink-0 aspect-40/21 relative overflow-hidden">
+                                            <div class="w-full sm:w-80 shrink-0 aspect-40/21 relative overflow-hidden">
                                                 <img
                                                     src={
                                                         instance.thumbnailPath ||
@@ -140,7 +140,7 @@ const userInstances = await prisma.instance.findMany({
                                                 />
                                             </div>
                                         ) : (
-                                            <div class="w-80 shrink-0 aspect-40/21 bg-linear-to-br from-[#1a4a70] to-[#0D3559] flex items-center justify-center">
+                                            <div class="w-full sm:w-80 shrink-0 aspect-40/21 bg-linear-to-br from-[#1a4a70] to-[#0D3559] flex items-center justify-center">
                                                 <svg
                                                     class="w-12 h-12 text-white/10"
                                                     fill="none"

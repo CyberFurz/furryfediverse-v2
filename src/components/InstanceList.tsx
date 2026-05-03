@@ -70,10 +70,10 @@ function InstanceCard({ instance }: { instance: Instance }) {
     return (
         <div
             onClick={handleCardClick}
-            className="rounded-md bg-[#0D3559] border border-white/10 hover:border-[#31dcb2]/50 transition-colors overflow-hidden flex cursor-pointer group"
+            className="rounded-md bg-[#0D3559] border border-white/10 hover:border-[#31dcb2]/50 transition-colors overflow-hidden flex flex-col sm:flex-row cursor-pointer group"
         >
             {instance.thumbnailPath || instance.thumbnail ? (
-                <div className="w-80 shrink-0 aspect-40/21 relative overflow-hidden">
+                <div className="w-full sm:w-80 shrink-0 aspect-40/21 relative overflow-hidden">
                     <img
                         src={instance.thumbnailPath || instance.thumbnail || undefined}
                         alt={instance.title}
@@ -82,7 +82,7 @@ function InstanceCard({ instance }: { instance: Instance }) {
                     />
                 </div>
             ) : (
-                <div className="w-80 shrink-0 aspect-40/21 bg-linear-to-br from-[#1a4a70] to-[#0D3559] flex items-center justify-center">
+                <div className="w-full sm:w-80 shrink-0 aspect-40/21 bg-linear-to-br from-[#1a4a70] to-[#0D3559] flex items-center justify-center">
                     <svg className="w-16 h-16 text-white/10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                     </svg>
@@ -137,8 +137,8 @@ function InstanceCard({ instance }: { instance: Instance }) {
 
 function SkeletonCard() {
     return (
-        <div className="rounded-md bg-[#0D3559] border border-white/10 animate-pulse overflow-hidden flex">
-            <div className="w-80 shrink-0 aspect-40/21 bg-white/5" />
+        <div className="rounded-md bg-[#0D3559] border border-white/10 animate-pulse overflow-hidden flex flex-col sm:flex-row">
+            <div className="w-full sm:w-80 shrink-0 aspect-40/21 bg-white/5" />
             <div className="flex-1 min-w-0 p-4 space-y-3">
                 <div className="h-6 bg-white/10 rounded w-48" />
                 <div className="h-4 bg-white/10 rounded w-32" />
