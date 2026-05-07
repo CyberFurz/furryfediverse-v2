@@ -9,7 +9,7 @@ ENV BETTER_AUTH_URL=${BETTER_AUTH_URL}
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts=false
 
 COPY . .
 RUN pnpm prisma generate && pnpm build
@@ -23,7 +23,7 @@ ENV PORT=4321
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts=false
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
