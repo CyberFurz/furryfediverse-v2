@@ -19,5 +19,9 @@ export default defineConfig({
         "@": "./src"
       }
     }
+  },
+
+  security: {
+    checkOrigin: false,
   }
 });
