@@ -26,13 +26,13 @@ export const PROVIDERS: Record<PlatformKey, ProviderConfig> = {
   mastodon: {
     key: "mastodon",
     label: "Mastodon",
-    readScope: "read",
+    readScope: "profile",
     megadonType: "mastodon",
   },
   pleroma: {
     key: "pleroma",
     label: "Pleroma / Akkoma",
-    readScope: "read",
+    readScope: "read:accounts",
     megadonType: "pleroma",
   },
   pixelfed: {
@@ -50,7 +50,7 @@ export const PROVIDERS: Record<PlatformKey, ProviderConfig> = {
   gotosocial: {
     key: "gotosocial",
     label: "GoToSocial",
-    readScope: "read",
+    readScope: "profile",
     megadonType: "gotosocial",
   },
 };
