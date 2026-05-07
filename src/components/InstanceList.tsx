@@ -58,6 +58,17 @@ async function fetchInstances({ queryKey }: { queryKey: [string, Record<string, 
     return response.json();
 }
 
+function shuffleInstances(instances: Instance[]): Instance[] {
+    const shuffled = [...instances];
+
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    return shuffled;
+}
+
 function InstanceCard({ instance }: { instance: Instance }) {
     const typeColor = typeColors[instance.instanceType] || "bg-white/10 text-white/70 border-white/30";
     const cardLink = instance.customInviteLink || `https://${instance.domain}`;
@@ -215,6 +226,14 @@ function InstanceListContent() {
         placeholderData: keepPreviousData,
     });
 
+    const randomizedInstances = React.useMemo(() => {
+        if (!data?.instances) {
+            return [];
+        }
+
+        return shuffleInstances(data.instances);
+    }, [data?.instances]);
+
     return (
         <div>
             <div className="space-y-4 mb-6">
@@ -272,10 +291,10 @@ function InstanceListContent() {
                         <SkeletonCard key={i} />
                     ))}
                 </div>
-            ) : data?.instances && data.instances.length > 0 ? (
+            ) : randomizedInstances.length > 0 ? (
                 <>
                     <div className="space-y-4">
-                        {data.instances.map((instance) => (
+                        {randomizedInstances.map((instance) => (
                             <InstanceCard key={instance.id} instance={instance} />
                         ))}
                     </div>

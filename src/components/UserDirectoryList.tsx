@@ -41,6 +41,17 @@ async function fetchProfiles(search: string): Promise<DirProfile[]> {
   return json.data || [];
 }
 
+function shuffleProfiles(profiles: DirProfile[]): DirProfile[] {
+  const shuffled = [...profiles];
+
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  return shuffled;
+}
+
 function DirectoryGrid() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -59,7 +70,8 @@ function DirectoryGrid() {
 
   const profiles = useMemo(() => {
     const base = data ?? [];
-    return hideNsfw ? base.filter((p) => !p.isPrimaryNsfw) : base;
+    const filtered = hideNsfw ? base.filter((p) => !p.isPrimaryNsfw) : base;
+    return shuffleProfiles(filtered);
   }, [data, hideNsfw]);
 
   return (
