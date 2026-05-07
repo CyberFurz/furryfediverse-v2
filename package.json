@@ -48,6 +48,12 @@
   "pnpm": {
     "overrides": {
       "vite": "^7"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@prisma/engines",
+      "esbuild",
+      "prisma",
+      "sharp"
+    ]
   }
 }

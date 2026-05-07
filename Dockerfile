@@ -1,15 +1,16 @@
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 
-ARG BETTER_AUTH_SECRET
-ARG BETTER_AUTH_URL
+ARG BETTER_AUTH_SECRET=build-time-secret-not-for-production
+ARG BETTER_AUTH_URL=http://localhost:4321
 ENV BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
 ENV BETTER_AUTH_URL=${BETTER_AUTH_URL}
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-RUN pnpm install --frozen-lockfile --ignore-scripts=false
+RUN pnpm install --frozen-lockfile --ignore-scripts=false --config.strictDepBuilds=false
+RUN pnpm rebuild @prisma/engines prisma esbuild sharp
 
 COPY . .
 RUN pnpm prisma generate && pnpm build
@@ -23,7 +24,8 @@ ENV PORT=4321
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-RUN pnpm install --frozen-lockfile --prod --ignore-scripts=false
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts=false --config.strictDepBuilds=false
+RUN pnpm rebuild @prisma/engines prisma esbuild sharp || true
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
