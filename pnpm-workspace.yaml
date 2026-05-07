@@ -1,5 +1,5 @@
-allowBuilds:
-  '@prisma/engines': true
-  esbuild: true
-  prisma: true
-  sharp: true
+onlyBuiltDependencies:
+  - '@prisma/engines'
+  - esbuild
+  - prisma
+  - sharp
