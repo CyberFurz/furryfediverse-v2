@@ -54,19 +54,18 @@ export const POST: APIRoute = async ({ locals, params }) => {
     }
 
     const account = accountRes.data;
-    const refreshToken = Date.now();
 
     const cachedAvatarUrl = account.avatar
       ? await downloadAndCacheProfileImage(
           account.avatar,
-          `${existing.platform}-${existing.instanceDomain}-${existing.externalAccountId}-avatar-${refreshToken}`,
+          `${existing.platform}-${existing.instanceDomain}-${existing.externalAccountId}-avatar`,
           true,
         )
       : null;
     const cachedHeaderUrl = account.header
       ? await downloadAndCacheProfileImage(
           account.header,
-          `${existing.platform}-${existing.instanceDomain}-${existing.externalAccountId}-header-${refreshToken}`,
+          `${existing.platform}-${existing.instanceDomain}-${existing.externalAccountId}-header`,
           true,
         )
       : null;

@@ -4,7 +4,6 @@ import type { APIRoute } from "astro";
 import { InstanceFetcher } from "../../../../lib/fedi-data";
 import { downloadAndCacheImage } from "../../../../lib/image-cache";
 import { prisma } from "../../../../lib/prisma";
-import crypto from "crypto";
 
 export const POST: APIRoute = async ({ url, locals }) => {
     const session = locals.session;
@@ -58,9 +57,9 @@ export const POST: APIRoute = async ({ url, locals }) => {
         let newThumbnailPath = existingInstance.thumbnailPath;
         let thumbnailUpdated = false;
 
-        if (freshData.thumbnail && freshData.thumbnail !== existingInstance.thumbnail) {
-            const filename = `${existingInstance.domain}-${Date.now()}-${crypto.randomUUID()}`;
-            const cachedPath = await downloadAndCacheImage(freshData.thumbnail, filename);
+        if (freshData.thumbnail) {
+            const filename = existingInstance.domain;
+            const cachedPath = await downloadAndCacheImage(freshData.thumbnail, filename, true);
             if (cachedPath) {
                 newThumbnailPath = cachedPath;
                 thumbnailUpdated = true;

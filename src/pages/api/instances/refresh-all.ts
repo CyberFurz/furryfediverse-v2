@@ -4,7 +4,6 @@ import type { APIRoute } from "astro";
 import { InstanceFetcher } from "../../../lib/fedi-data";
 import { downloadAndCacheImage } from "../../../lib/image-cache";
 import { prisma } from "../../../lib/prisma";
-import crypto from "crypto";
 
 export const GET: APIRoute = async () => {
     try {
@@ -55,14 +54,11 @@ export const GET: APIRoute = async () => {
                     let thumbnailUpdated = false;
 
                     if (freshData.thumbnail) {
-                        const needsCaching = !instance.thumbnailPath || freshData.thumbnail !== instance.thumbnail;
-                        if (needsCaching) {
-                            const filename = `${instance.domain}-${Date.now()}-${crypto.randomUUID()}`;
-                            const cachedPath = await downloadAndCacheImage(freshData.thumbnail, filename);
-                            if (cachedPath) {
-                                newThumbnailPath = cachedPath;
-                                thumbnailUpdated = true;
-                            }
+                        const filename = instance.domain;
+                        const cachedPath = await downloadAndCacheImage(freshData.thumbnail, filename, true);
+                        if (cachedPath) {
+                            newThumbnailPath = cachedPath;
+                            thumbnailUpdated = true;
                         }
                     }
 

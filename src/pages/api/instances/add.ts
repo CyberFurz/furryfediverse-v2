@@ -153,7 +153,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
         let thumbnailPath = null;
         if (instanceData.thumbnail) {
-            const filename = `${cleanedDomain}-${Date.now()}`;
+            const filename = cleanedDomain;
             thumbnailPath = await downloadAndCacheImage(instanceData.thumbnail, filename);
         }
 
