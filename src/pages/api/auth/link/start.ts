@@ -3,10 +3,9 @@ export const prerender = false;
 import type { APIRoute } from "astro";
 import { PROVIDERS, type PlatformKey } from "../../../../lib/social/providers";
 import generator from "megalodon";
-import crypto from "crypto";
+import { createAuthFlowState } from "../../../../lib/auth-flow-state";
 
 const SITE_URL = process.env.SITE_URL || "http://localhost:4321";
-const STATE_TTL_MS = 10 * 60 * 1000;
 const CLIENT_NAME = "FurryFediverse";
 
 export const POST: APIRoute = async ({ request, cookies, locals }) => {
@@ -49,9 +48,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       redirect_uris: redirectUri,
     });
 
-    const state = crypto.randomBytes(32).toString("hex");
-
-    const statePayload = JSON.stringify({
+    const state = await createAuthFlowState("link", {
       platform,
       instanceDomain: cleanDomain,
       userId: user?.id ?? null,
@@ -59,24 +56,14 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       flow: authFlow,
       clientId: appData.client_id,
       clientSecret: appData.client_secret,
-      createdAt: Date.now(),
-    });
+    }, 10 * 60);
 
-    const stateToken = Buffer.from(statePayload).toString("base64url");
-
+    cookies.delete("link_state_data", { path: "/" });
     cookies.set("link_state", state, {
       httpOnly: true,
       secure: true,
       sameSite: "lax",
-      maxAge: STATE_TTL_MS / 1000,
-      path: "/",
-    });
-
-    cookies.set("link_state_data", stateToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      maxAge: STATE_TTL_MS / 1000,
+      maxAge: 10 * 60,
       path: "/",
     });
 

@@ -86,6 +86,20 @@ model LinkedProfileHashtag {
   @@map("linked_profile_hashtag")
 }
 
+model AuthFlowState {
+  id         String   @id @default(cuid())
+  state      String   @unique
+  kind       String
+  payload    String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([kind])
+  @@index([expiresAt])
+  @@map("auth_flow_state")
+}
+
 model Session {
   id        String   @id
   expiresAt DateTime

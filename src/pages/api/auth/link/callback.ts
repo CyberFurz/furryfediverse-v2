@@ -12,6 +12,7 @@ import generator from "megalodon";
 import { auth } from "../../../../lib/auth";
 import { deriveFediversePassword } from "../../../../lib/fediverse-auth";
 import { hashPassword } from "better-auth/crypto";
+import { consumeAuthFlowState, createAuthFlowState } from "../../../../lib/auth-flow-state";
 
 const SITE_URL = process.env.SITE_URL || "http://localhost:4321";
 const CLIENT_NAME = "FurryFediverse";
@@ -32,12 +33,11 @@ export const GET: APIRoute = async ({ url, cookies, redirect, request }) => {
   }
 
   const cookieState = cookies.get("link_state")?.value;
-  const cookieStateData = cookies.get("link_state_data")?.value;
 
   cookies.delete("link_state", { path: "/" });
   cookies.delete("link_state_data", { path: "/" });
 
-  if (state !== cookieState) {
+  if (!cookieState || state !== cookieState) {
     return redirect("/auth/links?error=state_mismatch");
   }
 
@@ -49,19 +49,31 @@ export const GET: APIRoute = async ({ url, cookies, redirect, request }) => {
   let clientSecret: string;
   let flow: "link" | "register" | "login";
 
-  try {
-    const payload = JSON.parse(Buffer.from(cookieStateData!, "base64url").toString());
-    platform = payload.platform;
-    instanceDomain = payload.instanceDomain;
-    userId = payload.userId;
-    isPrimaryNsfw = Boolean(payload.isPrimaryNsfw);
-    flow = payload.flow === "register" ? "register" : payload.flow === "login" ? "login" : "link";
-    clientId = payload.clientId;
-    clientSecret = payload.clientSecret;
+  type LinkStatePayload = {
+    platform: PlatformKey;
+    instanceDomain: string;
+    userId: string | null;
+    isPrimaryNsfw: boolean;
+    flow: "link" | "register" | "login";
+    clientId: string;
+    clientSecret: string;
+  };
 
-    if (Date.now() - payload.createdAt > 10 * 60 * 1000) {
-      return redirect("/auth/links?error=state_expired");
+  try {
+    const record = await consumeAuthFlowState<LinkStatePayload>("link", cookieState);
+    if (!record) {
+      return redirect("/auth/links?error=invalid_state");
     }
+
+    const statePayload = record.payload;
+    platform = statePayload.platform;
+    instanceDomain = statePayload.instanceDomain;
+    userId = statePayload.userId;
+    isPrimaryNsfw = Boolean(statePayload.isPrimaryNsfw);
+    flow = statePayload.flow === "register" ? "register" : statePayload.flow === "login" ? "login" : "link";
+    clientId = statePayload.clientId;
+    clientSecret = statePayload.clientSecret;
+
   } catch {
     return redirect("/auth/links?error=invalid_state");
   }
@@ -114,33 +126,32 @@ export const GET: APIRoute = async ({ url, cookies, redirect, request }) => {
     }
 
     if (flow === "register") {
-      const pendingPayload = Buffer.from(
-        JSON.stringify({
-          platform,
-          instanceDomain,
-          externalAccountId: account.id,
-          accessToken,
-          refreshToken: tokenData.refresh_token ?? null,
-          tokenExpiresAt: tokenData.expires_in
-            ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
-            : null,
-          scope: provider.readScope,
-          username: account.username,
-          acct: account.acct,
-          displayName: account.display_name ?? null,
-          avatarUrl: avatarUrl ?? account.avatar ?? null,
-          headerUrl: headerUrl ?? account.header ?? null,
-          bio: account.note ?? null,
-          followersCount: account.followers_count ?? 0,
-          followingCount: account.following_count ?? 0,
-          statusesCount: account.statuses_count ?? 0,
-          profileUrl: account.url ?? null,
-          isPrimaryNsfw,
-          createdAt: Date.now(),
-        })
-      ).toString("base64url");
+      const pendingPayload = {
+        platform,
+        instanceDomain,
+        externalAccountId: account.id,
+        accessToken,
+        refreshToken: tokenData.refresh_token ?? null,
+        tokenExpiresAt: tokenData.expires_in
+          ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+          : null,
+        scope: provider.readScope,
+        username: account.username,
+        acct: account.acct,
+        displayName: account.display_name ?? null,
+        avatarUrl: avatarUrl ?? account.avatar ?? null,
+        headerUrl: headerUrl ?? account.header ?? null,
+        bio: account.note ?? null,
+        followersCount: account.followers_count ?? 0,
+        followingCount: account.following_count ?? 0,
+        statusesCount: account.statuses_count ?? 0,
+        profileUrl: account.url ?? null,
+        isPrimaryNsfw,
+      };
 
-      cookies.set("fediverse_signup_pending", pendingPayload, {
+      const pendingToken = await createAuthFlowState("fediverse-signup-pending", pendingPayload, 10 * 60);
+
+      cookies.set("fediverse_signup_pending", pendingToken, {
         httpOnly: true,
         secure: true,
         sameSite: "lax",

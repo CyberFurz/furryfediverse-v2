@@ -4,6 +4,7 @@ import type { APIRoute } from "astro";
 import { prisma } from "../../../../lib/prisma";
 import { auth } from "../../../../lib/auth";
 import { deriveFediversePassword } from "../../../../lib/fediverse-auth";
+import { readAuthFlowState, consumeAuthFlowState } from "../../../../lib/auth-flow-state";
 
 type PendingSignup = {
   platform: string;
@@ -24,7 +25,6 @@ type PendingSignup = {
   statusesCount: number;
   profileUrl: string | null;
   isPrimaryNsfw: boolean;
-  createdAt: number;
 };
 
 export const POST: APIRoute = async ({ request, cookies }) => {
@@ -34,12 +34,13 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       return new Response(JSON.stringify({ error: "No pending fediverse signup" }), { status: 400, headers: { "Content-Type": "application/json" } });
     }
 
-    const pending = JSON.parse(Buffer.from(pendingToken, "base64url").toString()) as PendingSignup;
-    if (Date.now() - pending.createdAt > 10 * 60 * 1000) {
+    const pendingRecord = await readAuthFlowState<PendingSignup>("fediverse-signup-pending", pendingToken);
+    if (!pendingRecord) {
       cookies.delete("fediverse_signup_pending", { path: "/" });
       return new Response(JSON.stringify({ error: "Fediverse signup expired. Please reconnect your account." }), { status: 400, headers: { "Content-Type": "application/json" } });
     }
 
+    const pending = pendingRecord.payload;
     const body = await request.json();
     const email = String(body.email || "").trim().toLowerCase();
     const name = String(body.name || "").trim();
@@ -58,13 +59,21 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     });
     if (existing) {
       cookies.delete("fediverse_signup_pending", { path: "/" });
+      await consumeAuthFlowState<PendingSignup>("fediverse-signup-pending", pendingToken);
       return new Response(JSON.stringify({ error: "This fediverse account is already linked" }), { status: 409, headers: { "Content-Type": "application/json" } });
     }
 
+    const consumedRecord = await consumeAuthFlowState<PendingSignup>("fediverse-signup-pending", pendingToken);
+    if (!consumedRecord) {
+      cookies.delete("fediverse_signup_pending", { path: "/" });
+      return new Response(JSON.stringify({ error: "Fediverse signup expired. Please reconnect your account." }), { status: 400, headers: { "Content-Type": "application/json" } });
+    }
+
+    const consumedPending = consumedRecord.payload;
     const password = deriveFediversePassword({
-      platform: pending.platform,
-      instanceDomain: pending.instanceDomain,
-      externalAccountId: pending.externalAccountId,
+      platform: consumedPending.platform,
+      instanceDomain: consumedPending.instanceDomain,
+      externalAccountId: consumedPending.externalAccountId,
     });
 
     const signUpRes = await auth.api.signUpEmail({
@@ -115,6 +124,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       },
     });
 
+    await consumeAuthFlowState<PendingSignup>("fediverse-signup-pending", pendingToken);
     cookies.delete("fediverse_signup_pending", { path: "/" });
     const response = new Response(JSON.stringify({ success: true }), { status: 200, headers: { "Content-Type": "application/json" } });
     const setCookie = signUpRes.headers.get("set-cookie");
