@@ -219,10 +219,25 @@ const providers = [
 		el!.classList.remove("hidden");
 		other!.classList.add("hidden");
 	}
-
 	function hideMsgs() {
 		errorMessage?.classList.add("hidden");
 		successMessage?.classList.add("hidden");
+	}
+
+	function escapeHtml(value: string): string {
+		const div = document.createElement("div");
+		div.textContent = value;
+		return div.innerHTML;
+	}
+
+	function safeUrl(value: string | null | undefined): string | null {
+		if (!value) return null;
+		try {
+			const parsed = new URL(value);
+			return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.toString() : null;
+		} catch {
+			return null;
+		}
 	}
 
 	async function loadLinkedAccounts() {
@@ -261,38 +276,46 @@ const providers = [
 			}
 
 			linkedAccountsList!.innerHTML = accounts
-				.map(
-					(a) => `
-				<div class="bg-white/5 rounded-lg p-4 border border-white/10" data-id="${a.id}">
-					<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-						<div class="flex items-center gap-3 min-w-0">
-							${a.avatarUrl ? `<img src="${a.avatarUrl}" alt="" class="w-10 h-10 rounded-full object-cover" />` : `<div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-lg">${platformIcons[a.platform] ?? "?"}</div>`}
-							<div class="min-w-0">
-								<p class="text-white font-semibold">${a.displayName || a.acct}</p>
-								<p class="text-white/60 text-sm break-words">@${a.acct}@${a.instanceDomain} · ${platformIcons[a.platform] ?? ""} ${a.platform}${a.isPrimaryNsfw ? " · NSFW" : ""}${a.isPrimaryProfile ? " · Primary Avatar" : ""}</p>
-								<a href="${a.profileUrl}" target="_blank" rel="noopener" class="text-[#31dcb2] text-sm hover:underline no-underline">View Profile</a>
+				.map((a) => {
+					const avatar = safeUrl(a.avatarUrl);
+					const profileUrl = safeUrl(a.profileUrl) || `https://${escapeHtml(a.instanceDomain)}/@${encodeURIComponent(a.acct)}`;
+					const displayName = escapeHtml(a.displayName || a.acct);
+					const acctLine = escapeHtml(`@${a.acct}@${a.instanceDomain} · ${platformIcons[a.platform] ?? ""} ${a.platform}${a.isPrimaryNsfw ? " · NSFW" : ""}${a.isPrimaryProfile ? " · Primary Avatar" : ""}`);
+					const hashtagHtml = a.hashtags
+						.map((h) => `<span class="hashtag-chip inline-flex items-center gap-1 bg-[#31dcb2]/10 text-[#31dcb2] text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-red-500/20 hover:text-red-300 transition-colors" data-tag-id="${escapeHtml(h.id)}" data-profile-id="${escapeHtml(a.id)}">#${escapeHtml(h.normalizedTag)}</span>`)
+						.join("");
+
+					return `
+					<div class="bg-white/5 rounded-lg p-4 border border-white/10" data-id="${escapeHtml(a.id)}">
+						<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+							<div class="flex items-center gap-3 min-w-0">
+								${avatar ? `<img src="${escapeHtml(avatar)}" alt="" class="w-10 h-10 rounded-full object-cover" />` : `<div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-lg">${platformIcons[a.platform] ?? "?"}</div>`}
+								<div class="min-w-0">
+									<p class="text-white font-semibold">${displayName}</p>
+									<p class="text-white/60 text-sm break-words">${acctLine}</p>
+									<a href="${escapeHtml(profileUrl)}" target="_blank" rel="noopener noreferrer" class="text-[#31dcb2] text-sm hover:underline no-underline">View Profile</a>
+								</div>
+							</div>
+							<div class="grid grid-cols-2 gap-2 w-full min-w-0 sm:w-auto sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 shrink-0">
+								<button class="sync-btn w-full min-w-0 whitespace-normal break-words text-center leading-tight text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg transition-colors" data-id="${escapeHtml(a.id)}">Sync</button>
+								<button class="toggle-primary-profile-btn w-full min-w-0 whitespace-normal break-words text-center leading-tight text-xs ${a.isPrimaryProfile ? "bg-[#31dcb2]/25 text-[#9ff0dc] border border-[#31dcb2]/50" : "bg-white/10 text-white border border-white/20"} hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors" data-id="${escapeHtml(a.id)}" data-primary-profile="${a.isPrimaryProfile ? "1" : "0"}">${a.isPrimaryProfile ? "Primary Avatar: On" : "Set Primary Avatar"}</button>
+								<button class="toggle-nsfw-btn w-full min-w-0 whitespace-normal break-words text-center leading-tight text-xs ${a.isPrimaryNsfw ? "bg-amber-500/25 text-amber-200 border border-amber-400/40" : "bg-white/10 text-white border border-white/20"} hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors" data-id="${escapeHtml(a.id)}" data-nsfw="${a.isPrimaryNsfw ? "1" : "0"}">${a.isPrimaryNsfw ? "NSFW: On" : "NSFW: Off"}</button>
+								<button class="unlink-btn w-full min-w-0 whitespace-normal break-words text-center leading-tight text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 px-3 py-1.5 rounded-lg transition-colors border border-red-500/30" data-id="${escapeHtml(a.id)}">Unlink</button>
 							</div>
 						</div>
-						<div class="grid grid-cols-2 gap-2 w-full min-w-0 sm:w-auto sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 shrink-0">
-							<button class="sync-btn w-full min-w-0 whitespace-normal break-words text-center leading-tight text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg transition-colors" data-id="${a.id}">Sync</button>
-							<button class="toggle-primary-profile-btn w-full min-w-0 whitespace-normal break-words text-center leading-tight text-xs ${a.isPrimaryProfile ? "bg-[#31dcb2]/25 text-[#9ff0dc] border border-[#31dcb2]/50" : "bg-white/10 text-white border border-white/20"} hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors" data-id="${a.id}" data-primary-profile="${a.isPrimaryProfile ? "1" : "0"}">${a.isPrimaryProfile ? "Primary Avatar: On" : "Set Primary Avatar"}</button>
-							<button class="toggle-nsfw-btn w-full min-w-0 whitespace-normal break-words text-center leading-tight text-xs ${a.isPrimaryNsfw ? "bg-amber-500/25 text-amber-200 border border-amber-400/40" : "bg-white/10 text-white border border-white/20"} hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors" data-id="${a.id}" data-nsfw="${a.isPrimaryNsfw ? "1" : "0"}">${a.isPrimaryNsfw ? "NSFW: On" : "NSFW: Off"}</button>
-							<button class="unlink-btn w-full min-w-0 whitespace-normal break-words text-center leading-tight text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 px-3 py-1.5 rounded-lg transition-colors border border-red-500/30" data-id="${a.id}">Unlink</button>
+						<div class="mt-3 pt-3 border-t border-white/10">
+							<p class="text-white/60 text-xs mb-2">Searchable Tags <span class="text-white/40">(click to remove)</span></p>
+							<div class="flex flex-wrap gap-2 mb-2 hashtag-chips" data-id="${escapeHtml(a.id)}">
+								${hashtagHtml}
+							</div>
+							<form class="add-tag-form flex gap-2" data-id="${escapeHtml(a.id)}">
+								<input type="text" placeholder="Add tag..." class="add-tag-input flex-1 px-3 py-1.5 bg-white/5 border border-white/20 rounded-lg text-white text-sm placeholder-white/40 focus:outline-none focus:border-[#31dcb2]" />
+								<button type="submit" class="add-tag-btn text-xs bg-[#31dcb2]/20 hover:bg-[#31dcb2]/30 text-[#31dcb2] px-3 py-1.5 rounded-lg transition-colors">Add</button>
+							</form>
 						</div>
 					</div>
-					<div class="mt-3 pt-3 border-t border-white/10">
-						<p class="text-white/60 text-xs mb-2">Searchable Tags <span class="text-white/40">(click to remove)</span></p>
-						<div class="flex flex-wrap gap-2 mb-2 hashtag-chips" data-id="${a.id}">
-							${a.hashtags.map((h) => `<span class="hashtag-chip inline-flex items-center gap-1 bg-[#31dcb2]/10 text-[#31dcb2] text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-red-500/20 hover:text-red-300 transition-colors" data-tag-id="${h.id}" data-profile-id="${a.id}">#${h.normalizedTag}</span>`).join("")}
-						</div>
-						<form class="add-tag-form flex gap-2" data-id="${a.id}">
-							<input type="text" placeholder="Add tag..." class="add-tag-input flex-1 px-3 py-1.5 bg-white/5 border border-white/20 rounded-lg text-white text-sm placeholder-white/40 focus:outline-none focus:border-[#31dcb2]" />
-							<button type="submit" class="add-tag-btn text-xs bg-[#31dcb2]/20 hover:bg-[#31dcb2]/30 text-[#31dcb2] px-3 py-1.5 rounded-lg transition-colors">Add</button>
-						</form>
-					</div>
-				</div>
-			`,
-				)
+					`;
+				})
 				.join("");
 		} catch {
 			linkedAccountsList!.innerHTML =

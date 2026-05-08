@@ -2,6 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from "astro";
 import { prisma } from "../../../lib/prisma";
+import { persistInlineArticleImages } from "../../../lib/article-image-storage";
 
 export const GET: APIRoute = async ({ url }) => {
     const search = url.searchParams.get("search") || "";
@@ -68,10 +69,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
             );
         }
 
+        const processedContent = await persistInlineArticleImages(content);
+
         const draft = await prisma.articleDraft.create({
             data: {
                 title,
-                content,
+                content: processedContent,
                 category,
                 authorId: user.id,
                 status: "pending",

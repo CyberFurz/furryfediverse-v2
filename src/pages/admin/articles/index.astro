@@ -3,6 +3,7 @@ export const prerender = false;
 import Layout from "../../../layouts/Layout.astro";
 import { prisma } from "../../../lib/prisma";
 import { auth } from "../../../lib/auth";
+import { sanitizeArticleHtml } from "../../../lib/html-sanitizer";
 
 const user = Astro.locals.user;
 
@@ -42,6 +43,10 @@ const [drafts, total] = await Promise.all([
 
 const totalPages = Math.ceil(total / limit);
 const currentPage = pageParam;
+const safeDrafts = drafts.map((draft) => ({
+	...draft,
+	content: sanitizeArticleHtml(draft.content),
+}));
 
 const pendingCount = await prisma.articleDraft.count({
 	where: { status: "pending" },
@@ -97,7 +102,7 @@ const pendingCount = await prisma.articleDraft.count({
 
 			<div class="space-y-4">
 				{
-					drafts.map((draft) => (
+					safeDrafts.map((draft) => (
 						<div class="bg-[#0D3559] rounded-xl border border-white/10 p-6">
 							<div class="flex items-start justify-between">
 								<div class="flex-1">

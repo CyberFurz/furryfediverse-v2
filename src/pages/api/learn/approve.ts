@@ -2,6 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from "astro";
 import { prisma } from "../../../lib/prisma";
+import { persistInlineArticleImages } from "../../../lib/article-image-storage";
 
 export const POST: APIRoute = async ({ url, locals }) => {
     const session = locals.session;
@@ -45,19 +46,21 @@ export const POST: APIRoute = async ({ url, locals }) => {
             );
         }
 
+        const processedContent = await persistInlineArticleImages(draft.content);
+
         if (draft.articleId) {
             const updatedArticle = await prisma.article.update({
                 where: { id: draft.articleId },
                 data: {
                     title: draft.title,
-                    content: draft.content,
+                    content: processedContent,
                     category: draft.category,
                 }
             });
 
             await prisma.articleDraft.update({
                 where: { id: draftId },
-                data: { status: "approved" }
+                data: { status: "approved", content: processedContent }
             });
 
             return new Response(
@@ -68,7 +71,7 @@ export const POST: APIRoute = async ({ url, locals }) => {
             const newArticle = await prisma.article.create({
                 data: {
                     title: draft.title,
-                    content: draft.content,
+                    content: processedContent,
                     category: draft.category,
                     authorId: draft.authorId,
                 }
@@ -79,6 +82,7 @@ export const POST: APIRoute = async ({ url, locals }) => {
                 data: {
                     status: "approved",
                     articleId: newArticle.id,
+                    content: processedContent,
                 }
             });
 

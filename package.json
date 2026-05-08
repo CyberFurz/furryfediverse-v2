@@ -26,6 +26,7 @@
     "@tanstack/react-query": "^5.100.6",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/sanitize-html": "^2.16.1",
     "astro": "^6.1.5",
     "better-auth": "^1.6.9",
     "dotenv": "^17.4.2",
@@ -35,6 +36,7 @@
     "quill": "^2.0.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
+    "sanitize-html": "^2.17.3",
     "sharp": "^0.34.5",
     "tailwindcss": "^4.2.2"
   },

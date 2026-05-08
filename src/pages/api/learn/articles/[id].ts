@@ -2,6 +2,8 @@ export const prerender = false;
 
 import type { APIRoute } from "astro";
 import { prisma } from "../../../../lib/prisma";
+import { sanitizeArticleHtml } from "../../../../lib/html-sanitizer";
+import { persistInlineArticleImages } from "../../../../lib/article-image-storage";
 
 export const GET: APIRoute = async ({ params, locals }) => {
     const session = locals.session;
@@ -48,7 +50,12 @@ export const GET: APIRoute = async ({ params, locals }) => {
         }
 
         return new Response(
-            JSON.stringify({ draft }),
+            JSON.stringify({
+                draft: {
+                    ...draft,
+                    content: sanitizeArticleHtml(draft.content),
+                },
+            }),
             { status: 200, headers: { "Content-Type": "application/json" } }
         );
     } catch (error) {
@@ -117,11 +124,13 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
             );
         }
 
+        const processedContent = await persistInlineArticleImages(content);
+
         const updatedDraft = await prisma.articleDraft.update({
             where: { id: draftId },
             data: {
                 title,
-                content,
+                content: processedContent,
                 category,
                 status: "pending",
             },

@@ -3,8 +3,9 @@ export const prerender = false;
 import type { APIRoute } from "astro";
 import fs from "fs";
 import path from "path";
+import { getArticleUploadDir } from "../../../../lib/article-image-storage";
 
-const IMAGE_DIR = path.join(process.cwd(), "storage", "article-images");
+const IMAGE_DIR = getArticleUploadDir();
 
 export const GET: APIRoute = async ({ url }) => {
     const pathSegments = url.pathname.split("/");
@@ -22,7 +23,14 @@ export const GET: APIRoute = async ({ url }) => {
     }
 
     const ext = path.extname(sanitizedFilename).toLowerCase();
-    const contentType = ext === ".png" ? "image/png" : ext === ".gif" ? "image/gif" : ext === ".webp" ? "image/webp" : "image/jpeg";
+    const contentType =
+        ext === ".png"
+            ? "image/png"
+            : ext === ".gif"
+              ? "image/gif"
+              : ext === ".webp"
+                ? "image/webp"
+                : "image/jpeg";
 
     const fileBuffer = fs.readFileSync(filePath);
 

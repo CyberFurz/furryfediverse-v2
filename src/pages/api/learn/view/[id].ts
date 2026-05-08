@@ -2,6 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from "astro";
 import { prisma } from "../../../../lib/prisma";
+import { sanitizeArticleHtml } from "../../../../lib/html-sanitizer";
 
 export const GET: APIRoute = async ({ params }) => {
     const articleId = params.id;
@@ -31,7 +32,12 @@ export const GET: APIRoute = async ({ params }) => {
         }
 
         return new Response(
-            JSON.stringify({ article }),
+            JSON.stringify({
+                article: {
+                    ...article,
+                    content: sanitizeArticleHtml(article.content),
+                },
+            }),
             { status: 200, headers: { "Content-Type": "application/json" } }
         );
     } catch (error) {

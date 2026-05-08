@@ -1,12 +1,12 @@
 export const prerender = false;
 
 import type { APIRoute } from "astro";
-import { prisma } from "../../../lib/prisma";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { getArticleUploadDir } from "../../../lib/article-image-storage";
 
-const IMAGE_DIR = path.join(process.cwd(), "storage", "article-images");
+const IMAGE_DIR = getArticleUploadDir();
 
 export const POST: APIRoute = async ({ request, locals }) => {
     const session = locals.session;
@@ -49,7 +49,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
             fs.mkdirSync(IMAGE_DIR, { recursive: true });
         }
 
-        const ext = file.name.split(".").pop() || "jpg";
+        const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
         const filename = `${crypto.randomUUID()}.${ext}`;
         const filePath = path.join(IMAGE_DIR, filename);
 

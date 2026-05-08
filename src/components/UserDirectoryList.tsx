@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { sanitizeProfileHtml } from "../lib/html-sanitizer";
 
 type DirProfile = {
   id: string;
@@ -18,19 +19,6 @@ type DirProfile = {
   isPrimaryNsfw: boolean;
   hashtags: Array<{ id: string; normalizedTag: string }>;
 };
-
-function sanitizeProfileHtml(input: string | null | undefined): string {
-  if (!input) return "";
-
-  return input
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
-    .replace(/\son\w+\s*=\s*(['"]).*?\1/gi, "")
-    .replace(/\son\w+\s*=\s*[^\s>]+/gi, "")
-    .replace(/\sstyle\s*=\s*(['"]).*?\1/gi, "")
-    .replace(/\sstyle\s*=\s*[^\s>]+/gi, "")
-    .replace(/href\s*=\s*(['"])javascript:[\s\S]*?\1/gi, "href=\"#\"");
-}
 
 async function fetchProfiles(search: string): Promise<DirProfile[]> {
   const params = new URLSearchParams();

@@ -96,6 +96,41 @@ if (!user.emailVerified) {
         var script = document.createElement("script");
         script.src = "https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js";
         script.onload = function() {
+            function handleImageUpload(quill) {
+                var input = document.createElement("input");
+                input.setAttribute("type", "file");
+                input.setAttribute("accept", "image/*");
+                input.click();
+
+                input.onchange = function() {
+                    var file = input.files && input.files[0];
+                    if (!file) return;
+
+                    var formData = new FormData();
+                    formData.append("image", file);
+
+                    fetch("/api/learn/upload-image", {
+                        method: "POST",
+                        body: formData,
+                    })
+                        .then(function(response) { return response.json(); })
+                        .then(function(data) {
+                            if (!data.url) {
+                                throw new Error(data.error || "Image upload failed");
+                            }
+
+                            var range = quill.getSelection(true);
+                            var index = range ? range.index : quill.getLength();
+                            quill.insertEmbed(index, "image", data.url, "user");
+                            quill.setSelection(index + 1, 0);
+                        })
+                        .catch(function(error) {
+                            formError.textContent = error.message || "Image upload failed";
+                            formError.classList.remove("hidden");
+                        });
+                };
+            }
+
             var quill = new Quill("#editor-container", {
                 theme: "snow",
                 placeholder: "Write your article content here...",
@@ -111,6 +146,10 @@ if (!user.emailVerified) {
                         ["clean"]
                     ]
                 }
+            });
+
+            quill.getModule("toolbar").addHandler("image", function() {
+                handleImageUpload(quill);
             });
 
             var form = document.getElementById("article-form");
