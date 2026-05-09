@@ -24,6 +24,7 @@ type PendingSignup = {
   followingCount: number;
   statusesCount: number;
   profileUrl: string | null;
+  customEmojiMap: Record<string, string>;
   isPrimaryNsfw: boolean;
 };
 
@@ -119,6 +120,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         followingCount: pending.followingCount,
         statusesCount: pending.statusesCount,
         profileUrl: pending.profileUrl,
+        customEmojiMap: pending.customEmojiMap,
+        customEmojiUpdatedAt: new Date(),
         lastSyncedAt: new Date(),
         isPrimaryNsfw: Boolean(pending.isPrimaryNsfw),
       },

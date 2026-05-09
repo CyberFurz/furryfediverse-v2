@@ -7,7 +7,7 @@ import {
   type PlatformKey,
   createMegalodonClient,
 } from "../../../../lib/social/providers";
-import { downloadAndCacheProfileImage } from "../../../../lib/image-cache";
+import { downloadAndCacheProfileEmoji, downloadAndCacheProfileImage } from "../../../../lib/image-cache";
 import generator from "megalodon";
 import { auth } from "../../../../lib/auth";
 import { deriveFediversePassword } from "../../../../lib/fediverse-auth";
@@ -16,6 +16,40 @@ import { consumeAuthFlowState, createAuthFlowState } from "../../../../lib/auth-
 
 const SITE_URL = process.env.SITE_URL || "http://localhost:4321";
 const CLIENT_NAME = "FurryFediverse";
+
+interface RemoteCustomEmoji {
+  shortcode?: string;
+  url?: string;
+  static_url?: string;
+}
+
+async function buildCustomEmojiMap(
+  platform: string,
+  instanceDomain: string,
+  externalAccountId: string,
+  rawEmojis: unknown,
+): Promise<Record<string, string>> {
+  const emojis = Array.isArray(rawEmojis) ? (rawEmojis as RemoteCustomEmoji[]) : [];
+  const entries = await Promise.all(
+    emojis.slice(0, 100).map(async (emoji) => {
+      const shortcode = (emoji.shortcode ?? "").trim().toLowerCase();
+      if (!shortcode) return null;
+
+      const sourceUrl = emoji.static_url ?? emoji.url;
+      if (!sourceUrl) return null;
+
+      const cachedUrl = await downloadAndCacheProfileEmoji(
+        sourceUrl,
+        `${platform}-${instanceDomain}-${externalAccountId}-emoji-${shortcode}`,
+      );
+
+      if (!cachedUrl) return null;
+      return [shortcode, cachedUrl] as const;
+    }),
+  );
+
+  return Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => Boolean(entry)));
+}
 
 export const GET: APIRoute = async ({ url, cookies, redirect, request }) => {
   const code = url.searchParams.get("code");
@@ -110,6 +144,12 @@ export const GET: APIRoute = async ({ url, cookies, redirect, request }) => {
     const headerUrl = account.header
       ? await downloadAndCacheProfileImage(account.header, `${platform}-${instanceDomain}-${account.id}-header`)
       : null;
+    const customEmojiMap = await buildCustomEmojiMap(
+      platform,
+      instanceDomain,
+      account.id,
+      (account as { emojis?: unknown }).emojis,
+    );
 
     const existing = await prisma.linkedProfile.findUnique({
       where: {
@@ -146,6 +186,7 @@ export const GET: APIRoute = async ({ url, cookies, redirect, request }) => {
         followingCount: account.following_count ?? 0,
         statusesCount: account.statuses_count ?? 0,
         profileUrl: account.url ?? null,
+        customEmojiMap,
         isPrimaryNsfw,
       };
 
@@ -246,6 +287,8 @@ export const GET: APIRoute = async ({ url, cookies, redirect, request }) => {
         followingCount: account.following_count ?? 0,
         statusesCount: account.statuses_count ?? 0,
         profileUrl: account.url ?? null,
+        customEmojiMap,
+        customEmojiUpdatedAt: new Date(),
         lastSyncedAt: new Date(),
         isPrimaryNsfw,
       },

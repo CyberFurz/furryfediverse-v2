@@ -1,6 +1,40 @@
 import { prisma } from "../prisma";
-import { deleteCachedProfileImageByUrl, downloadAndCacheProfileImage } from "../image-cache";
+import { deleteCachedProfileImageByUrl, downloadAndCacheProfileEmoji, downloadAndCacheProfileImage } from "../image-cache";
 import { createMegalodonClient } from "./providers";
+
+interface RemoteCustomEmoji {
+  shortcode?: string;
+  url?: string;
+  static_url?: string;
+}
+
+async function buildCustomEmojiMap(existing: {
+  platform: string;
+  instanceDomain: string;
+  externalAccountId: string;
+}, rawEmojis: unknown): Promise<Record<string, string>> {
+  const emojis = Array.isArray(rawEmojis) ? (rawEmojis as RemoteCustomEmoji[]) : [];
+  const mapEntries = await Promise.all(
+    emojis.slice(0, 100).map(async (emoji) => {
+      const shortcode = (emoji.shortcode ?? "").trim().toLowerCase();
+      if (!shortcode) return null;
+
+      const sourceUrl = emoji.static_url ?? emoji.url;
+      if (!sourceUrl) return null;
+
+      const cachedUrl = await downloadAndCacheProfileEmoji(
+        sourceUrl,
+        `${existing.platform}-${existing.instanceDomain}-${existing.externalAccountId}-emoji-${shortcode}`,
+        true,
+      );
+
+      if (!cachedUrl) return null;
+      return [shortcode, cachedUrl] as const;
+    }),
+  );
+
+  return Object.fromEntries(mapEntries.filter((entry): entry is readonly [string, string] => Boolean(entry)));
+}
 
 export interface SyncLinkedProfileOptions {
   minSyncIntervalMs?: number;
@@ -62,6 +96,7 @@ export async function syncLinkedProfileById(
           true,
         )
       : null;
+    const customEmojiMap = await buildCustomEmojiMap(existing, (account as { emojis?: unknown }).emojis);
 
     const updated = await prisma.linkedProfile.update({
       where: { id: profileId },
@@ -76,6 +111,8 @@ export async function syncLinkedProfileById(
         followingCount: account.following_count ?? 0,
         statusesCount: account.statuses_count ?? 0,
         profileUrl: account.url ?? null,
+        customEmojiMap,
+        customEmojiUpdatedAt: new Date(),
         lastSyncedAt: new Date(),
         syncError: null,
       },

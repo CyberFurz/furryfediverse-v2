@@ -247,6 +247,49 @@ const providers = [
 		return `Last synced ${date.toLocaleString()}`;
 	}
 
+	function stripHtml(value: string | null | undefined): string {
+		if (!value) return "";
+		const div = document.createElement("div");
+		div.innerHTML = value;
+		return div.textContent || "";
+	}
+
+	function safeEmojiUrl(value: unknown): string | null {
+		if (typeof value !== "string") return null;
+		return value.startsWith("/api/profiles/emojis/") ? value : null;
+	}
+
+	function renderTextWithCustomEmoji(
+		text: string,
+		emojiMap: Record<string, unknown> | null | undefined,
+		imgClass = "w-4 h-4 inline-block align-[-0.2em]",
+	): string {
+		if (!text) return "";
+		const tokenRegex = /:([a-zA-Z0-9_+-]+):/g;
+		let result = "";
+		let cursor = 0;
+		let match: RegExpExecArray | null;
+
+		while ((match = tokenRegex.exec(text)) !== null) {
+			const fullToken = match[0];
+			const shortcode = match[1].toLowerCase();
+			const start = match.index;
+			result += escapeHtml(text.slice(cursor, start));
+
+			const emojiUrl = safeEmojiUrl(emojiMap?.[shortcode]);
+			if (emojiUrl) {
+				result += `<img src="${escapeHtml(emojiUrl)}" alt=":${escapeHtml(shortcode)}:" class="${imgClass}" loading="lazy" decoding="async" />`;
+			} else {
+				result += escapeHtml(fullToken);
+			}
+
+			cursor = start + fullToken.length;
+		}
+
+		result += escapeHtml(text.slice(cursor));
+		return result;
+	}
+
 	async function loadLinkedAccounts() {
 		try {
 			const res = await fetch("/api/auth/linked-accounts");
@@ -266,6 +309,8 @@ const providers = [
 				profileUrl: string | null;
 				followersCount: number;
 				lastSyncedAt: string | null;
+				bio: string | null;
+				customEmojiMap: Record<string, string> | null;
 				isActive: boolean;
 				isPrimaryNsfw: boolean;
 				isPrimaryProfile: boolean;
@@ -286,7 +331,16 @@ const providers = [
 				.map((a) => {
 					const avatar = safeUrl(a.avatarUrl);
 					const profileUrl = safeUrl(a.profileUrl) || `https://${escapeHtml(a.instanceDomain)}/@${encodeURIComponent(a.acct)}`;
-					const displayName = escapeHtml(a.displayName || a.acct);
+					const displayNameHtml = renderTextWithCustomEmoji(
+						a.displayName || a.acct,
+						a.customEmojiMap,
+						"w-5 h-5 inline-block align-[-0.2em]",
+					);
+					const bioText = stripHtml(a.bio);
+					const bioHtml = renderTextWithCustomEmoji(
+						bioText,
+						a.customEmojiMap,
+					);
 					const acctLine = escapeHtml(`@${a.acct}@${a.instanceDomain} · ${platformIcons[a.platform] ?? ""} ${a.platform}${a.isPrimaryNsfw ? " · NSFW" : ""}${a.isPrimaryProfile ? " · Primary Avatar" : ""}`);
 					const hashtagHtml = a.hashtags
 						.map((h) => `<span class="hashtag-chip inline-flex items-center gap-1 bg-[#31dcb2]/10 text-[#31dcb2] text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-red-500/20 hover:text-red-300 transition-colors" data-tag-id="${escapeHtml(h.id)}" data-profile-id="${escapeHtml(a.id)}">#${escapeHtml(h.normalizedTag)}</span>`)
@@ -299,8 +353,9 @@ const providers = [
 							<div class="flex items-center gap-3 min-w-0">
 								${avatar ? `<img src="${escapeHtml(avatar)}" alt="" class="w-10 h-10 rounded-full object-cover" />` : `<div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-lg">${platformIcons[a.platform] ?? "?"}</div>`}
 								<div class="min-w-0">
-									<p class="text-white font-semibold">${displayName}</p>
+									<p class="text-white font-semibold">${displayNameHtml}</p>
 									<p class="text-white/60 text-sm break-words">${acctLine}</p>
+									${bioHtml ? `<p class="text-white/70 text-sm break-words mt-1">${bioHtml}</p>` : ""}
 									<p class="text-white/40 text-xs">${lastSynced}</p>
 									<a href="${escapeHtml(profileUrl)}" target="_blank" rel="noopener noreferrer" class="text-[#31dcb2] text-sm hover:underline no-underline">View Profile</a>
 								</div>

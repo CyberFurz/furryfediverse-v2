@@ -6,6 +6,7 @@ import sharp from "sharp";
 const STORAGE_DIR = path.join(process.cwd(), "storage");
 const THUMBNAIL_DIR = path.join(STORAGE_DIR, "thumbnails");
 const PROFILE_DIR = path.join(STORAGE_DIR, "profiles");
+const PROFILE_EMOJI_DIR = path.join(STORAGE_DIR, "profile-emojis");
 
 function assertNoSymlinkPath(targetPath: string, stopPath: string): void {
     const resolvedStop = path.resolve(stopPath);
@@ -135,6 +136,20 @@ export async function downloadAndCacheProfileImage(
         filename,
         PROFILE_DIR,
         "/api/profiles/images",
+        forceRefresh,
+    );
+}
+
+export async function downloadAndCacheProfileEmoji(
+    imageUrl: string,
+    filename: string,
+    forceRefresh: boolean = false,
+): Promise<string | null> {
+    return downloadAndCacheImageToDir(
+        imageUrl,
+        filename,
+        PROFILE_EMOJI_DIR,
+        "/api/profiles/emojis",
         forceRefresh,
     );
 }
