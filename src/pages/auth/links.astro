@@ -240,6 +240,13 @@ const providers = [
 		}
 	}
 
+	function formatLastSynced(value: string | null): string {
+		if (!value) return "Not synced yet";
+		const date = new Date(value);
+		if (Number.isNaN(date.getTime())) return "Not synced yet";
+		return `Last synced ${date.toLocaleString()}`;
+	}
+
 	async function loadLinkedAccounts() {
 		try {
 			const res = await fetch("/api/auth/linked-accounts");
@@ -284,6 +291,7 @@ const providers = [
 					const hashtagHtml = a.hashtags
 						.map((h) => `<span class="hashtag-chip inline-flex items-center gap-1 bg-[#31dcb2]/10 text-[#31dcb2] text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-red-500/20 hover:text-red-300 transition-colors" data-tag-id="${escapeHtml(h.id)}" data-profile-id="${escapeHtml(a.id)}">#${escapeHtml(h.normalizedTag)}</span>`)
 						.join("");
+					const lastSynced = escapeHtml(formatLastSynced(a.lastSyncedAt));
 
 					return `
 					<div class="bg-white/5 rounded-lg p-4 border border-white/10" data-id="${escapeHtml(a.id)}">
@@ -293,11 +301,11 @@ const providers = [
 								<div class="min-w-0">
 									<p class="text-white font-semibold">${displayName}</p>
 									<p class="text-white/60 text-sm break-words">${acctLine}</p>
+									<p class="text-white/40 text-xs">${lastSynced}</p>
 									<a href="${escapeHtml(profileUrl)}" target="_blank" rel="noopener noreferrer" class="text-[#31dcb2] text-sm hover:underline no-underline">View Profile</a>
 								</div>
 							</div>
-							<div class="grid grid-cols-2 gap-2 w-full min-w-0 sm:w-auto sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 shrink-0">
-								<button class="sync-btn w-full min-w-0 whitespace-normal break-words text-center leading-tight text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg transition-colors" data-id="${escapeHtml(a.id)}">Sync</button>
+							<div class="grid grid-cols-2 gap-2 w-full min-w-0 sm:w-auto sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 shrink-0">
 								<button class="toggle-primary-profile-btn w-full min-w-0 whitespace-normal break-words text-center leading-tight text-xs ${a.isPrimaryProfile ? "bg-[#31dcb2]/25 text-[#9ff0dc] border border-[#31dcb2]/50" : "bg-white/10 text-white border border-white/20"} hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors" data-id="${escapeHtml(a.id)}" data-primary-profile="${a.isPrimaryProfile ? "1" : "0"}">${a.isPrimaryProfile ? "Primary Avatar: On" : "Set Primary Avatar"}</button>
 								<button class="toggle-nsfw-btn w-full min-w-0 whitespace-normal break-words text-center leading-tight text-xs ${a.isPrimaryNsfw ? "bg-amber-500/25 text-amber-200 border border-amber-400/40" : "bg-white/10 text-white border border-white/20"} hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors" data-id="${escapeHtml(a.id)}" data-nsfw="${a.isPrimaryNsfw ? "1" : "0"}">${a.isPrimaryNsfw ? "NSFW: On" : "NSFW: Off"}</button>
 								<button class="unlink-btn w-full min-w-0 whitespace-normal break-words text-center leading-tight text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 px-3 py-1.5 rounded-lg transition-colors border border-red-500/30" data-id="${escapeHtml(a.id)}">Unlink</button>
@@ -370,7 +378,6 @@ const providers = [
 
 	linkedAccountsList?.addEventListener("click", async (e) => {
 		const target = e.target as HTMLElement;
-		const syncBtn = target.closest(".sync-btn") as HTMLButtonElement | null;
 		const togglePrimaryProfileBtn = target.closest(
 			".toggle-primary-profile-btn",
 		) as HTMLButtonElement | null;
@@ -383,30 +390,6 @@ const providers = [
 		const hashtagChip = target.closest(
 			".hashtag-chip",
 		) as HTMLElement | null;
-
-		if (syncBtn) {
-			const id = syncBtn.dataset.id!;
-			syncBtn.disabled = true;
-			syncBtn.textContent = "Syncing...";
-			try {
-				const res = await fetch(
-					`/api/auth/linked-accounts/${id}/sync`,
-					{ method: "POST" },
-				);
-				if (!res.ok) {
-					const d = await res.json();
-					throw new Error(d.error || "Sync failed");
-				}
-				showMsg("Profile synced successfully!", "success");
-				await loadLinkedAccounts();
-			} catch (error: unknown) {
-				const msg =
-					error instanceof Error ? error.message : "Sync failed";
-				showMsg(msg, "error");
-			}
-			syncBtn.disabled = false;
-			syncBtn.textContent = "Sync";
-		}
 
 		if (toggleNsfwBtn) {
 			const id = toggleNsfwBtn.dataset.id!;

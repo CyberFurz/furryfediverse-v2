@@ -2,8 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from "astro";
 import { prisma } from "../../../../../lib/prisma";
-import { createMegalodonClient } from "../../../../../lib/social/providers";
-import { deleteCachedProfileImageByUrl, downloadAndCacheProfileImage } from "../../../../../lib/image-cache";
+import { syncLinkedProfileById } from "../../../../../lib/social/sync-linked-profile";
 
 export const POST: APIRoute = async ({ locals, params }) => {
   const user = locals.user;
@@ -38,72 +37,15 @@ export const POST: APIRoute = async ({ locals, params }) => {
       });
     }
 
-    const profileClient = createMegalodonClient(
-      existing.platform as any,
-      existing.instanceDomain,
-      existing.accessToken,
-    );
-
-    const accountRes = await profileClient.verifyAccountCredentials();
-
-    if (accountRes.status !== 200 || !accountRes.data) {
-      return new Response(JSON.stringify({ error: "Profile fetch failed" }), {
-        status: 502,
+    const result = await syncLinkedProfileById(id);
+    if (result.status !== "success") {
+      return new Response(JSON.stringify({ error: result.status === "error" ? result.error : "Sync skipped" }), {
+        status: 500,
         headers: { "Content-Type": "application/json" },
       });
     }
 
-    const account = accountRes.data;
-
-    const cachedAvatarUrl = account.avatar
-      ? await downloadAndCacheProfileImage(
-          account.avatar,
-          `${existing.platform}-${existing.instanceDomain}-${existing.externalAccountId}-avatar`,
-          true,
-        )
-      : null;
-    const cachedHeaderUrl = account.header
-      ? await downloadAndCacheProfileImage(
-          account.header,
-          `${existing.platform}-${existing.instanceDomain}-${existing.externalAccountId}-header`,
-          true,
-        )
-      : null;
-
-    const updated = await prisma.linkedProfile.update({
-      where: { id },
-      data: {
-        username: account.username,
-        acct: account.acct,
-        displayName: account.display_name ?? null,
-        avatarUrl: cachedAvatarUrl ?? account.avatar ?? null,
-        headerUrl: cachedHeaderUrl ?? account.header ?? null,
-        bio: account.note ?? null,
-        followersCount: account.followers_count ?? 0,
-        followingCount: account.following_count ?? 0,
-        statusesCount: account.statuses_count ?? 0,
-        profileUrl: account.url ?? null,
-        lastSyncedAt: new Date(),
-        syncError: null,
-      },
-    });
-
-    if (updated.avatarUrl && existing.avatarUrl && updated.avatarUrl !== existing.avatarUrl) {
-      deleteCachedProfileImageByUrl(existing.avatarUrl);
-    }
-
-    if (updated.headerUrl && existing.headerUrl && updated.headerUrl !== existing.headerUrl) {
-      deleteCachedProfileImageByUrl(existing.headerUrl);
-    }
-
-    if (updated.isPrimaryProfile) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { image: updated.avatarUrl ?? null },
-      });
-    }
-
-    return new Response(JSON.stringify({ success: true, data: { id: updated.id, lastSyncedAt: updated.lastSyncedAt } }), {
+    return new Response(JSON.stringify({ success: true, data: { id, lastSyncedAt: result.lastSyncedAt } }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
