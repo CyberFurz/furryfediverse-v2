@@ -1,0 +1,53 @@
+{
+  "name": "Furry Fediverse v2",
+  "dockerComposeFile": "../docker-compose.dev.yml",
+  "service": "app",
+  "workspaceFolder": "/app",
+  "shutdownAction": "stopCompose",
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit",
+          "source.organizeImports": "explicit"
+        },
+        "astro.press.anywhere.nodeServer": true
+      },
+      "extensions": [
+        "astro-build.astro-vscode",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "prisma.prisma",
+        "bradlc.vscode-tailwindcss",
+        "GraphQL.vscode-graphql",
+        "eamodio.gitlens",
+        "ms-vscode.vscode-typescript-next"
+      ]
+    }
+  },
+
+  "forwardPorts": [4321, 5432, 5555],
+
+  "postCreateCommand": "corepack enable && pnpm install --frozen-lockfile && pnpm prisma generate",
+
+  "postStartCommand": "echo 'Dev container ready. Run: pnpm db:studio && pnpm dev'",
+
+  "mounts": [
+    "source=${localEnv:HOME}/.npmrc,target=/home/node/.npmrc,readonly",
+    "source=pnpm-store,pnpm-store:/pnpm/store,type=volume",
+    "source=fedv2-node-modules,/app/node_modules,type=volume",
+    "source=fedv2-postgres,postgres_data,type=volume"
+  ],
+
+  "updateContentCommand": "pnpm install --frozen-lockfile",
+
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "username": "node"
+    }
+  }
+}

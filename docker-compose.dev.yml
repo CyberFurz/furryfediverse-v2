@@ -1,0 +1,57 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+      args:
+        BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+        BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+    container_name: furryfediverse-app-dev
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4321:4321"
+    env_file:
+      - .env
+    volumes:
+      # Mount local source for live reload
+      - .:/app:cached
+      - storage:/app/storage
+      - pnpm-store:/pnpm/store
+    command: >
+      sh -c "
+        printf 'DATABASE_URL set=%s\n' \"${DATABASE_URL:+yes}\" &&
+        corepack enable &&
+        pnpm install --frozen-lockfile &&
+        pnpm prisma generate &&
+        pnpm db:push &&
+        pnpm astro dev --host
+      "
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: furryfediverse-db
+    env_file:
+      - .env
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-furryfediverse} -d
+            ${POSTGRES_DB:-furryfediverse}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  storage:
+  pnpm-store:
