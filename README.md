@@ -201,3 +201,4 @@ The production Dockerfile uses a multi-stage build with the Node.js adapter for 
 | `SMTP_PORT` | SMTP port |
 | `SMTP_USER` | SMTP username |
 | `SMTP_PASS` | SMTP password |
+| `LINKED_PROFILE_SYNC_SECRET` | Secret for syncing linked profiles via webhook |
