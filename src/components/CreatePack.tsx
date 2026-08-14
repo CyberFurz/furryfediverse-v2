@@ -1,13 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faSpinner } from "@fortawesome/free-solid-svg-icons";
+import { faSpinner, faCircleCheck, faFileArrowUp } from "@fortawesome/free-solid-svg-icons";
 
 export default function CreatePack() {
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
+    const [csvFile, setCsvFile] = useState<File | null>(null);
+    const [dragOver, setDragOver] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [touched, setTouched] = useState({ title: false, description: false });
+    const fileRef = useRef<HTMLInputElement>(null);
 
     const titleError = touched.title && !title.trim() ? "Title is required" : null;
     const descError = touched.description && !description.trim() ? "Description is required" : null;
@@ -35,6 +38,30 @@ export default function CreatePack() {
             }
 
             const pack = await res.json();
+
+            // Step 2: If CSV was provided, import accounts
+            if (csvFile) {
+                const formData = new FormData();
+                formData.append("csv", csvFile);
+
+                const importRes = await fetch(`/api/packs/${pack.slug}/import-csv`, {
+                    method: "POST",
+                    body: formData,
+                });
+
+                if (!importRes.ok) {
+                    const data = await importRes.json().catch(() => ({}));
+                    // Non-fatal: pack was created, just warn
+                    setError(`Pack created but CSV import had issues: ${data.error || "Unknown error"}`);
+                    setTimeout(() => setError(null), 5000);
+                } else {
+                    const importData = await importRes.json();
+                    if (importData.skipped > 0) {
+                        setError(`Imported ${importData.imported} accounts, skipped ${importData.skipped} (not found in database). You can add more manually.`);
+                        setTimeout(() => setError(null), 6000);
+                    }
+                }
+            }
 
             window.location.href = `/packs/${pack.slug}/accounts`;
         } catch (err) {
@@ -91,6 +118,65 @@ export default function CreatePack() {
                     {descError && (
                         <p className="text-red-400 text-xs mt-1">{descError}</p>
                     )}
+                </div>
+
+                {/* CSV Upload */}
+                <div>
+                    <label className="block text-sm font-medium text-white/80 mb-2">
+                        Import from Mastodon Takeout CSV <span className="text-white/40">(optional)</span>
+                    </label>
+                    <div
+                        className={`relative border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                            dragOver
+                                ? "border-[#31dcb2] bg-[#31dcb2]/10"
+                                : csvFile
+                                    ? "border-[#31dcb2] bg-[#31dcb2]/5"
+                                    : "border-white/20 hover:border-white/40 bg-white/5"
+                        }`}
+                        onClick={() => fileRef.current?.click()}
+                        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }}
+                        onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }}
+                        onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(false); }}
+                        onDrop={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setDragOver(false);
+                            const files = e.dataTransfer.files;
+                            if (files.length > 0) {
+                                setCsvFile(files[0]);
+                            }
+                        }}
+                    >
+                        {csvFile ? (
+                            <div className="space-y-1">
+                                <FontAwesomeIcon icon={faCircleCheck} className="w-8 h-8 mx-auto text-[#31dcb2]" />
+                                <p className="text-[#31dcb2] font-medium text-sm">{csvFile.name}</p>
+                                <p className="text-white/40 text-xs">Click to change file</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-1">
+                                <FontAwesomeIcon icon={faFileArrowUp} className="w-8 h-8 mx-auto text-white/40" />
+                                <p className="text-white/60 text-sm">
+                                    <span className="text-[#31dcb2] font-medium">Click to upload</span> or drag and drop
+                                </p>
+                                <p className="text-white/40 text-xs">CSV/JSON-File</p>
+                            </div>
+                        )}
+                        <input
+                            ref={fileRef}
+                            type="file"
+                            accept=".csv"
+                            className="hidden"
+                            onChange={(e) => {
+                                setCsvFile(e.target.files?.[0] || null);
+                                // Reset so re-selecting the same file triggers onChange
+                                if (e.target) e.target.value = "";
+                            }}
+                        />
+                    </div>
+                    <p className="text-white/40 text-xs mt-2">
+                        Packs hold up to 150 accounts. Larger imports are truncated.
+                    </p>
                 </div>
 
                 {/* Error */}
