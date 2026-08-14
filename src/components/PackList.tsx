@@ -12,6 +12,7 @@ interface Pack {
     createdAt: string;
     publishedAt: string | null;
     numAccounts: number;
+    splashImage: string;
     createdBy: { id: string; name: string };
     _count?: { accounts: number };
 }
@@ -73,7 +74,22 @@ function PackCard({ pack }: { pack: Pack }) {
             href={`/packs/${pack.slug}`}
             className="block bg-white/5 rounded-xl border border-white/10 overflow-hidden no-underline hover:border-[#31dcb2]/40 transition-colors group"
         >
-            <div className="aspect-[2/1] bg-linear-to-br from-pink-500 to-purple-600" />
+            {pack.splashImage ? (
+                <div className="aspect-[2/1] relative overflow-hidden">
+                    <img
+                        src={pack.splashImage}
+                        alt={pack.title}
+                        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                            const img = e.currentTarget;
+                            img.style.display = "none";
+                            img.parentElement?.classList.add("bg-linear-to-br", "from-pink-500", "to-purple-600");
+                        }}
+                    />
+                </div>
+            ) : (
+                <div className="aspect-[2/1] bg-linear-to-br from-pink-500 to-purple-600" />
+            )}
             <div className="p-5">
                 <div className="flex items-start justify-between gap-2 mb-2">
                     <h3 className="font-bold text-white text-lg truncate">{pack.title}</h3>

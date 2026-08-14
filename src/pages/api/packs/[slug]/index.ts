@@ -32,6 +32,7 @@ interface PackDetail {
     createdAt: Date;
     updatedAt: Date;
     publishedAt: Date | null;
+    splashImage?: string | null;
     createdBy: PackCreatorProfile;
     accounts: PackAccountRow[];
     _count?: { accounts: number } | null;
@@ -128,6 +129,7 @@ function buildJsonBody(pack: PackDetail): object {
         created_at: pack.createdAt.toISOString(),
         updated_at: pack.updatedAt.toISOString(),
         published_at: pack.publishedAt?.toISOString() || null,
+        splash_image: pack.splashImage ? `/${pack.splashImage}` : null,
         numAccounts: pack._count?.accounts || 0,
         accounts: pack.accounts.map((spa) => {
             if (spa.linkedProfile) {

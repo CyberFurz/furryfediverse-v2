@@ -11,7 +11,7 @@ interface PackDetail {
     url?: string; title: string; description: string;
     created_by: string | { id: string; name: string; avatar?: string };
     created_at: string; published_at: string | null;
-    accounts: PackAccount[];
+    splash_image?: string; accounts: PackAccount[];
 }
 interface FollowAllResult {
     followed: number;
@@ -245,6 +245,15 @@ export default function SharePack({ slug, user = null, hasLinkedProfile = false 
 
     return (
         <div className="space-y-8">
+            {/* Splash */}
+            {pack.splash_image ? (
+                <div className="aspect-[1200/630] rounded-xl overflow-hidden border border-white/10">
+                    <img src={pack.splash_image} alt={pack.title} className="w-full h-full object-cover" />
+                </div>
+            ) : (
+                <div className="aspect-[1200/630] rounded-xl bg-linear-to-br from-pink-500 to-purple-600 border border-white/10" />
+            )}
+
             {/* Header */}
             <div>
                 <div className="flex items-center gap-3 mb-2">

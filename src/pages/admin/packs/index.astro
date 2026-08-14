@@ -260,6 +260,14 @@ function getStatus(pack: { status: string; deletedAt: Date | null }): string {
 													>
 														<i class="fa-solid fa-pen w-4 h-4 text-blue-400"></i>
 													</a>
+													<button type="button"
+														class="p-2 rounded hover:bg-white/10 transition-colors"
+														data-pack-id={pack.id}
+														data-action="regenerate-splash"
+														title="Regenerate splash image"
+													>
+														<i class="fa-solid fa-wand-magic-sparkles w-4 h-4 text-purple-400"></i>
+													</button>
 												</>
 											)}
 											{status === "deleted" ? (
@@ -351,6 +359,7 @@ function getStatus(pack: { status: string; deletedAt: Date | null }): string {
 				restore: "Restore this pack?",
 				approve: "Approve this pack? It will be published publicly.",
 				reject: "Reject this pack? The creator will be able to resubmit.",
+				"regenerate-splash": "Regenerate the splash image for this pack?",
 			};
 			const confirmMsg = confirmMessages[action] || "Are you sure?";
 			if (!confirm(confirmMsg)) return;
@@ -364,6 +373,7 @@ function getStatus(pack: { status: string; deletedAt: Date | null }): string {
 					restore: "Pack restored",
 					approve: "Pack approved",
 					reject: "Pack rejected",
+					"regenerate-splash": "Splash image regenerated",
 				};
 				showToast(actionLabels[action] || "Action done");
 				setTimeout(() => window.location.reload(), 500);
