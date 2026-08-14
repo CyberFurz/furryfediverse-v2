@@ -1,0 +1,45 @@
+---
+export const prerender = false;
+import Layout from "../../layouts/Layout.astro";
+import CreatePack from "../../components/CreatePack";
+const user = Astro.locals.user;
+
+if (!user) {
+    return Astro.redirect("/auth/login?redirect=/packs/create");
+}
+
+if (!user.emailVerified) {
+    return Astro.redirect("/auth/dashboard?unverified=1");
+}
+---
+
+<Layout title="Create Starter Pack - Furry Fediverse">
+    <main class="p-2 md:p-5 lg:px-60 2xl:px-80">
+        <div class="flex flex-col">
+            <div
+                class="flex items-center gap-2 text-sm bg-[#31dcb2] px-4 py-2 rounded-md"
+            >
+                <a href="/" class="text-[#12384b] font-semibold">Home</a>
+                <i class="fa-solid fa-chevron-right w-4 h-4 text-[#12384b]"></i>
+                <a href="/packs" class="text-[#12384b] font-semibold"
+                    >Starter Packs</a
+                >
+                <i class="fa-solid fa-chevron-right w-4 h-4 text-[#12384b]"></i>
+                <span class="text-[#12384b] font-semibold">Create</span>
+            </div>
+
+            <div class="py-6">
+                <div class="mb-6">
+                    <h1 class="font-bold text-2xl text-white">
+                        Create Starter Pack
+                    </h1>
+                    <p class="text-white/50 text-sm mt-1">
+                        Assemble a curated collection of fediverse accounts for others to follow
+                    </p>
+                </div>
+
+                <CreatePack client:load />
+            </div>
+        </div>
+    </main>
+</Layout>

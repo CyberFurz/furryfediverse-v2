@@ -1,0 +1,43 @@
+---
+export const prerender = false;
+import Layout from "../../../layouts/Layout.astro";
+import PackAccounts from "../../../components/PackAccounts";
+const user = Astro.locals.user;
+const { slug } = Astro.params;
+if (!slug) return Astro.redirect("/packs");
+
+if (!user) {
+    return Astro.redirect("/auth/login?redirect=/packs/" + slug + "/accounts");
+}
+---
+
+<Layout title="Manage Accounts - Furry Fediverse">
+    <main class="p-2 md:p-5 lg:px-60 2xl:px-80">
+        <div class="flex flex-col">
+            <div
+                class="flex items-center gap-2 text-sm bg-[#31dcb2] px-4 py-2 rounded-md"
+            >
+                <a href="/" class="text-[#12384b] font-semibold">Home</a>
+                <i class="fa-solid fa-chevron-right w-4 h-4 text-[#12384b]"></i>
+                <a href="/packs" class="text-[#12384b] font-semibold"
+                    >Starter Packs</a
+                >
+                <i class="fa-solid fa-chevron-right w-4 h-4 text-[#12384b]"></i>
+                <span class="text-[#12384b] font-semibold">Manage Accounts</span>
+            </div>
+
+            <div class="py-6">
+                <div class="mb-6">
+                    <h1 class="font-bold text-2xl text-white">
+                        Manage Accounts
+                    </h1>
+                    <p class="text-white/50 text-sm mt-1">
+                        Add, remove, or reorder accounts in your starter pack
+                    </p>
+                </div>
+
+                <PackAccounts slug={slug} client:load />
+            </div>
+        </div>
+    </main>
+</Layout>
