@@ -2,7 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from "astro";
 import { prisma } from "../../../../lib/prisma";
-import { requireUser, slugFrom } from "../../../../lib/api-helpers";
+import { requireUser, slugFrom, isAdmin } from "../../../../lib/api-helpers";
 
 const SITE_URL = process.env.SITE_URL || "https://furryfediverse.org";
 
@@ -154,7 +154,7 @@ function buildJsonBody(pack: PackDetail): object {
     };
 }
 
-export const GET: APIRoute = async ({ url, request }) => {
+export const GET: APIRoute = async ({ url, request, locals }) => {
     try {
         const pathSegments = url.pathname.split("/");
         const slug = pathSegments[pathSegments.length - 1];
@@ -176,6 +176,20 @@ export const GET: APIRoute = async ({ url, request }) => {
                 JSON.stringify({ error: "Starter pack not found" }),
                 { status: 404, headers: { "Content-Type": "application/json" } }
             );
+        }
+
+        // Unreviewed packs (draft/pending/rejected) must not be publicly
+        // viewable, even with a leaked slug. Only the owner or an admin
+        // may see them before approval.
+        if (pack.status !== "approved") {
+            const viewer = locals?.user ?? null;
+            const isOwner = viewer ? viewer.id === pack.createdById : false;
+            if (!isOwner && !(viewer && isAdmin(viewer))) {
+                return new Response(
+                    JSON.stringify({ error: "Starter pack not found" }),
+                    { status: 404, headers: { "Content-Type": "application/json" } }
+                );
+            }
         }
 
         const format = getPreferredFormat(request);
@@ -235,11 +249,18 @@ export const PUT: APIRoute = async ({ request, url, locals }) => {
         const body = await request.json();
         const { title, description } = body;
 
+        // Editing an approved pack must trigger re-review: reset the
+        // status to pending and unpublish, so the change can't slip out
+        // under the previously-approved content.
+        const wasApproved = existing.status === "approved" && existing.publishedAt;
         const updated = await prisma.starterPack.update({
             where: { id: existing.id },
             data: {
                 ...(title !== undefined ? { title } : {}),
                 ...(description !== undefined ? { description } : {}),
+                ...(wasApproved
+                    ? { status: "pending", publishedAt: null, splashImageNeedsUpdate: true }
+                    : {}),
             },
             include: {
                 createdBy: { select: { id: true, name: true } },

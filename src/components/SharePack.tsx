@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faSpinner, faEllipsisVertical } from "@fortawesome/free-solid-svg-icons";
+import { faSpinner, faEllipsisVertical, faUserPlus } from "@fortawesome/free-solid-svg-icons";
 
 // --- Types ---
 interface PackAccount {
@@ -14,11 +14,13 @@ interface PackDetail {
     accounts: PackAccount[];
 }
 interface FollowAllResult {
-    followed: number;
+    followed: string[] | number;
     skipped: number;
+    skippedAlreadyFollowing: number;
     errors: Array<{ acct: string; error: string }>;
     total: number;
-    backgroundStarted: boolean;
+    batchSize?: number;
+    backgroundStarted?: boolean;
 }
 
 // --- Sub-components ---
@@ -67,6 +69,17 @@ function AccountCard({ a }: { a: PackAccount }) {
                 </div>
             </div>
             {a.followers_count > 0 && <p className="text-xs text-white/50">{a.followers_count.toLocaleString()} followers</p>}
+            {a.url ? (
+                <a
+                    href={a.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center gap-1.5 w-full justify-center py-1.5 px-3 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 text-white/80 text-sm font-medium transition-colors no-underline"
+                >
+                    <FontAwesomeIcon icon={faUserPlus} className="w-3.5 h-3.5" />
+                    Follow on their instance
+                </a>
+            ) : null}
         </div>
     );
 }
@@ -166,10 +179,12 @@ export default function SharePack({ slug, user = null, hasLinkedProfile = false 
             }
             const r: FollowAllResult = await res.json();
             setFollowResult({
-                followed: r.followed,
+                followed: r.followed ?? [],
                 skipped: r.skipped ?? 0,
+                skippedAlreadyFollowing: r.skippedAlreadyFollowing ?? 0,
                 errors: r.errors ?? [],
                 total: r.total,
+                batchSize: r.batchSize,
                 backgroundStarted: r.backgroundStarted ?? false,
             });
         } catch (err) {
@@ -275,37 +290,44 @@ export default function SharePack({ slug, user = null, hasLinkedProfile = false 
                 <StatCard label="Servers" value={serverCount} />
             </div>
 
-            {/* Follow All */}
+            {/* Follow options */}
             {user ? (
-                <div>
+                <div className="space-y-4">
                     {followResult ? (
                         <div className={`p-4 rounded-xl text-sm border ${
-                            followResult.errors.length === 0
+                            (followResult.errors?.length ?? 0) === 0
                                 ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
                                 : "bg-amber-500/10 border-amber-500/30 text-amber-300"
                         }`}>
-                            {followResult.errors.length === 0 ? (
+                            {Array.isArray(followResult.followed) && followResult.followed.length > 0 ? (
                                 <>
-                                    Followed {followResult.followed} of {followResult.total} accounts!
-                                    {followResult.backgroundStarted && " The process will continue in the background."}
+                                    <p>Followed {followResult.followed.length} account{followResult.followed.length !== 1 ? "s" : ""}:</p>
+                                    <ul className="mt-1 space-y-0.5 text-xs text-white/70">
+                                        {followResult.followed.map((h) => <li key={h}>{h}</li>)}
+                                    </ul>
                                 </>
                             ) : (
-                                <>
-                                    Followed {followResult.followed} of {followResult.total} accounts
-                                    {followResult.skipped > 0 && `, skipped ${followResult.skipped}`}
-                                    {followResult.errors.length > 0 && `, ${followResult.errors.length} error${followResult.errors.length !== 1 ? "s" : ""}`}
-                                    <details className="mt-2">
-                                        <summary className="cursor-pointer text-xs opacity-70 hover:opacity-100">Details</summary>
-                                        <ul className="mt-1 space-y-1 text-xs">
-                                            {followResult.errors.slice(0, 5).map((e, i) => (
-                                                <li key={i}><span className="text-white/60">{e.error}</span> for <span className="text-white/80">{e.acct}</span></li>
-                                            ))}
-                                            {followResult.errors.length > 5 && (
-                                                <li className="text-white/40">...and {followResult.errors.length - 5} more</li>
-                                            )}
-                                        </ul>
-                                    </details>
-                                </>
+                                <p>No new accounts followed this round.</p>
+                            )}
+                            {(followResult.skippedAlreadyFollowing ?? 0) > 0 && (
+                                <p className="mt-1 text-xs text-white/60">
+                                    Skipped {followResult.skippedAlreadyFollowing} you already follow.
+                                </p>
+                            )}
+                            {(followResult.errors?.length ?? 0) > 0 && (
+                                <details className="mt-2">
+                                    <summary className="cursor-pointer text-xs opacity-70 hover:opacity-100">
+                                        {followResult.errors.length} error{followResult.errors.length !== 1 ? "s" : ""}
+                                    </summary>
+                                    <ul className="mt-1 space-y-1 text-xs">
+                                        {followResult.errors.slice(0, 5).map((e, i) => (
+                                            <li key={i}><span className="text-white/60">{e.error}</span> for <span className="text-white/80">{e.acct}</span></li>
+                                        ))}
+                                        {followResult.errors.length > 5 && (
+                                            <li className="text-white/40">...and {followResult.errors.length - 5} more</li>
+                                        )}
+                                    </ul>
+                                </details>
                             )}
                         </div>
                     ) : followError === "no-profile" ? (
@@ -325,19 +347,33 @@ export default function SharePack({ slug, user = null, hasLinkedProfile = false 
                             <a href="/auth/settings" className="text-[#31dcb2] hover:underline font-medium">Link Account</a>
                         </div>
                     ) : (
-                        <button onClick={handleFollowAll} disabled={following || accountCount === 0}
-                            className="w-full py-3 bg-[#31dcb2] text-[#12384b] font-semibold rounded-xl hover:bg-[#28c4a0] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-base">
-                            {following
-                                ? <span className="flex items-center justify-center gap-2">{spin} Following accounts...</span>
-                                : `Follow All ${accountCount} ${accountCount === 1 ? "Account" : "Accounts"}`
-                            }
-                        </button>
+                        <>
+                            <button onClick={handleFollowAll} disabled={following || accountCount === 0}
+                                className="w-full py-3 bg-[#31dcb2] text-[#12384b] font-semibold rounded-xl hover:bg-[#28c4a0] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-base">
+                                {following
+                                    ? <span className="flex items-center justify-center gap-2">{spin} Following next 25 accounts...</span>
+                                    : "Follow next 25 accounts"
+                                }
+                            </button>
+                            <p className="text-white/40 text-xs">
+                                Follows up to 25 accounts you don't already follow, one per minute.
+                                You can follow the rest one by one below, or{" "}
+                                <a href={`/api/packs/${slug}/follow?format=csv`} className="text-[#31dcb2] hover:underline" download>
+                                    download the full list as CSV
+                                </a>{" "}
+                                to import on your own server.
+                            </p>
+                        </>
                     )}
                 </div>
             ) : (
                 <div className="p-4 rounded-xl text-sm border bg-white/5 border-white/10 text-white/60">
                     <a href="/auth/settings" className="text-[#31dcb2] hover:underline font-medium">Log in</a>
-                    {" "}to follow all accounts in this pack.
+                    {" "}to follow accounts in this pack, or{" "}
+                    <a href={`/api/packs/${slug}/follow?format=csv`} className="text-[#31dcb2] hover:underline" download>
+                        download the list as CSV
+                    </a>
+                    {" "}to import it on your own server.
                 </div>
             )}
 
@@ -348,7 +384,7 @@ export default function SharePack({ slug, user = null, hasLinkedProfile = false 
                     {pack.accounts.some((a) => !a.discoverable) && (
                         <p className="text-white/40 text-xs mb-4 -mt-2">
                             They may look incomplete here, but they will still work with the
-                            follow-all feature.
+                            follow and CSV import options.
                         </p>
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

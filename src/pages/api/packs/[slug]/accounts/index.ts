@@ -265,14 +265,20 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
             }
         }
 
-        // Update numAccounts on the pack
+        // Update numAccounts on the pack. Changing the account list of an
+        // approved pack must trigger re-review, same as editing metadata.
         const newCount = await prisma.starterPackAccount.count({
             where: { starterPackId: pack.id },
         });
 
         await prisma.starterPack.update({
             where: { id: pack.id },
-            data: { numAccounts: newCount },
+            data: {
+                numAccounts: newCount,
+                ...(pack.status === "approved" && pack.publishedAt
+                    ? { status: "pending", publishedAt: null, splashImageNeedsUpdate: true }
+                    : {}),
+            },
         });
 
         return new Response(

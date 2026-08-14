@@ -33,6 +33,7 @@ model User {
   starterPacks       StarterPack[]
   starterPackAccounts StarterPackAccount[]
   followAllClicks    FollowAllClick[]
+  packAuditLogs      PackAuditLog[]
 
   @@unique([email])
   @@map("user")
@@ -249,6 +250,7 @@ model StarterPack {
 
   accounts    StarterPackAccount[]
   followClicks FollowAllClick[]
+  auditLogs    PackAuditLog[]
 
   @@unique([createdById, slug])
   @@index([status])
@@ -283,4 +285,18 @@ model FollowAllClick {
 
   @@index([starterPackId, createdAt])
   @@map("follow_all_click")
+}
+
+model PackAuditLog {
+  id            String      @id @default(cuid())
+  packId        String
+  pack          StarterPack @relation(fields: [packId], references: [id], onDelete: Cascade)
+  actorId       String
+  actor         User        @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  action        String      // "approve" | "reject" | "delete" | "restore"
+  reason        String?
+  createdAt     DateTime    @default(now())
+
+  @@index([packId, createdAt])
+  @@map("pack_audit_log")
 }

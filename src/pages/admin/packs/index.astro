@@ -325,11 +325,16 @@ function getStatus(pack: { status: string; deletedAt: Date | null }): string {
 		setTimeout(() => toast.remove(), 3000);
 	}
 
-	async function callPackAction(action: string, packId: string) {
+	async function callPackAction(action: string, packId: string, reason?: string) {
 		const res = await fetch("/api/admin/packs", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ action, packId }),
+			body: JSON.stringify({
+				action,
+				packId,
+				...(action === "delete" ? { confirm: true } : {}),
+				...(reason ? { reason } : {}),
+			}),
 		});
 		const data = await res.json();
 		if (!res.ok) {
@@ -358,7 +363,13 @@ function getStatus(pack: { status: string; deletedAt: Date | null }): string {
 			target.classList.add("opacity-50", "pointer-events-none");
 
 			try {
-				await callPackAction(action, packId);
+				// Ask for a rejection reason so the creator can fix it.
+				let reason: string | undefined;
+				if (action === "reject") {
+					reason = window.prompt("Reason for rejection (shown to the creator)") || undefined;
+				}
+
+				await callPackAction(action, packId, reason);
 				const actionLabels: Record<string, string> = {
 					delete: "Pack deleted",
 					restore: "Pack restored",

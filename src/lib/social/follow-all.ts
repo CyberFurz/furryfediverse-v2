@@ -1,11 +1,21 @@
 import { createMegalodonClient, type PlatformKey } from "./providers";
 
-export interface FollowAllResult {
-  followed: number;
-  skipped: number;
+export interface FollowBatchResult {
+  followed: string[]; // handles of accounts followed this run
+  skippedAlreadyFollowing: number;
+  skippedSelf: number;
   errors: Array<{ acct: string; error: string }>;
   total: number;
 }
+
+/** How many accounts a single "follow next" action follows at most. */
+export const FOLLOW_BATCH_SIZE = 25;
+
+/** Pause between follow requests to avoid tripping rate limits. */
+const FOLLOW_DELAY_MS = 750;
+
+/** Backoff (ms) applied after a 429 before the next attempt. */
+const RATE_LIMIT_BACKOFF_MS = 5000;
 
 /**
  * Extract a meaningful error reason from a megalodon / axios error.
@@ -138,29 +148,54 @@ async function resolveAndFollowAccount(
   }
 
   // ---------- follow the resolved account ----------
+  //
+  // Note on `reblog: false`: we deliberately do not subscribe the user to
+  // boosts of the followed account. Following with reblogs enabled is a
+  // privacy-affecting default the follower did not ask for, and it is not
+  // what a "follow these accounts" action implies.
+  //
+  // Note on batch following: the Mastodon team explicitly chose NOT to ship
+  // a bulk-follow action in Collections (Mastodon 4.6), their version of
+  // starter packs. From the "Designing Collections" post
+  // (https://blog.joinmastodon.org/2026/04/designing-collections/):
+  //   "We're not including a bulk follow action on day one... People on
+  //   Bluesky often found themselves mass following accounts from stale
+  //   Starter Packs, only to have a subpar feed afterwards."
+  // So we keep batches small (FOLLOW_BATCH_SIZE), pace the requests, and
+  // skip accounts the user already follows, to limit spam risk to home and
+  // target instances.
 
   try {
-    await client.followAccount(resolvedId, { reblog: true });
+    await client.followAccount(resolvedId, { reblog: false });
     return { ok: true };
   } catch (followErr) {
     return { ok: false, error: getErrorReason(followErr) };
   }
 }
 
+/** Simple sleep helper to pace follow requests. */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
- * Follow all accounts in a starter pack for a given user.
+ * Follow the next `batchSize` accounts in the pack that the user does not
+ * already follow.
  *
- * Creates a megalodon client from the user's LinkedProfile, then iterates
- * over every pack account, skipping the user's own profile and recording
- * any errors encountered along the way.
+ * Fetches nothing itself; the caller is expected to supply the set of
+ * handles the user already follows (from their home instance) so we never
+ * re-follow. Requests are paced and stop early on repeated rate limits.
  *
  * @param userProfile   The calling user's LinkedProfile (needs platform,
  *                      instanceDomain, accessToken, id, acct).
  * @param packAccounts  Array of objects, each wrapping a LinkedProfile
  *                      belonging to one account in the pack.
- * @returns             Aggregated follow-all statistics.
+ * @param alreadyFollowing  Set of `username@domain` handles the user
+ *                      already follows on their home instance.
+ * @returns             Batch follow statistics, including the handles
+ *                      that were followed this run.
  */
-export async function followAllAccounts(
+export async function followNextBatch(
   userProfile: {
     id: string;
     platform: string;
@@ -177,27 +212,47 @@ export async function followAllAccounts(
       acct: string;
     };
   }>,
-): Promise<FollowAllResult> {
+  alreadyFollowing: Set<string>,
+): Promise<FollowBatchResult> {
   const client = createMegalodonClient(
     userProfile.platform as PlatformKey,
     userProfile.instanceDomain,
     userProfile.accessToken,
   );
 
-  let followed = 0;
+  const followed: string[] = [];
   const errors: Array<{ acct: string; error: string }> = [];
-  let skipped = 0;
-  const total = packAccounts.length;
+  let skippedAlreadyFollowing = 0;
+  let skippedSelf = 0;
 
+  const candidates: typeof packAccounts = [];
+
+  // Dedupe by linkedProfileId so a misconfigured pack can't follow the
+  // same account twice, and drop self/already-followed accounts up front.
+  const seen = new Set<string>();
   for (const account of packAccounts) {
-    const { linkedProfile: target } = account;
-
-    // Skip the user's own profile
+    const target = account.linkedProfile;
+    if (!target) continue;
     if (target.id === userProfile.id) {
-      skipped++;
+      skippedSelf++;
       continue;
     }
+    const handle = `${target.username}@${target.instanceDomain}`.toLowerCase();
+    if (seen.has(handle)) continue; // duplicate in pack
+    seen.add(handle);
+    if (alreadyFollowing.has(handle)) {
+      skippedAlreadyFollowing++;
+      continue;
+    }
+    candidates.push(account);
+  }
 
+  const total = candidates.length;
+  const batch = candidates.slice(0, FOLLOW_BATCH_SIZE);
+  let consecutiveRateLimits = 0;
+
+  for (const account of batch) {
+    const target = account.linkedProfile;
     const result = await resolveAndFollowAccount(
       client,
       target,
@@ -205,11 +260,28 @@ export async function followAllAccounts(
     );
 
     if (result.ok) {
-      followed++;
+      followed.push(target.acct);
+      consecutiveRateLimits = 0;
     } else {
       errors.push({ acct: target.acct, error: result.error });
+      if (result.error === "Rate limited") {
+        consecutiveRateLimits++;
+        // Back off and keep going; if the instance keeps rejecting us,
+        // stop early rather than hammering it.
+        await sleep(RATE_LIMIT_BACKOFF_MS);
+        if (consecutiveRateLimits >= 3) break;
+      }
     }
+
+    // Pace requests between follows (also respects 1 req/sec-ish limits).
+    await sleep(FOLLOW_DELAY_MS);
   }
 
-  return { followed, skipped, errors, total };
+  return {
+    followed,
+    skippedAlreadyFollowing,
+    skippedSelf,
+    errors,
+    total,
+  };
 }
