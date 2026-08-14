@@ -1,0 +1,34 @@
+---
+export const prerender = false;
+import Layout from "../../../layouts/Layout.astro";
+import EventDetail from "../../../components/EventDetail";
+import { prisma } from "../../../lib/prisma";
+const { slug } = Astro.params;
+if (!slug) return Astro.redirect("/events");
+const user = Astro.locals.user;
+
+let userInstance = "";
+if (user) {
+    const lp = await prisma.linkedProfile.findFirst({
+        where: { userId: user.id, isActive: true, platform: "mastodon", isPrimaryProfile: true },
+        select: { instanceDomain: true },
+    });
+    userInstance = lp?.instanceDomain || "";
+}
+---
+
+<Layout title="Event - Furry Fediverse">
+    <main class="p-2 md:p-5 lg:px-60 2xl:px-80">
+        <div class="flex flex-col">
+            <div class="flex items-center gap-2 text-sm bg-[#31dcb2] px-4 py-2 rounded-md">
+                <a href="/" class="text-[#12384b] font-semibold">Home</a>
+                <i class="fa-solid fa-chevron-right w-4 h-4 text-[#12384b]"></i><a href="/events" class="text-[#12384b] font-semibold">Events</a>
+                <i class="fa-solid fa-chevron-right w-4 h-4 text-[#12384b]"></i><span class="text-[#12384b] font-semibold">Event</span>
+            </div>
+
+            <div class="py-6">
+                <EventDetail slug={slug} user={user} userInstance={userInstance} client:load />
+            </div>
+        </div>
+    </main>
+</Layout>

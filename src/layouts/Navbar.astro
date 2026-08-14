@@ -5,6 +5,7 @@ const navLinks = [
     { href: "/", label: "Home" },
     { href: "/instances", label: "Instances" },
     { href: "/packs", label: "Packs" },
+    { href: "/events", label: "Events" },
     { href: "/users", label: "User Directory" },
     { href: "/learn", label: "Learn" },
 ];
@@ -165,15 +166,22 @@ const userImage = user?.image || null;
                                                         </svg>
                                                         Instances
                                                     </a>
-                                                    <a
-                                                         href="/admin/packs"
-                                                         class="flex items-center gap-2 px-3 py-2 text-white hover:bg-white/10 rounded-md transition-colors no-underline"
-                                                     >
-                                                         <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                                                         Starter Packs
-                                                     </a>
-                                                    <a
-                                                         href="/admin/articles"
+                                                     <a
+                                                          href="/admin/packs"
+                                                          class="flex items-center gap-2 px-3 py-2 text-white hover:bg-white/10 rounded-md transition-colors no-underline"
+                                                      >
+                                                          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                                                          Starter Packs
+                                                      </a>
+                                                     <a
+                                                          href="/admin/events"
+                                                          class="flex items-center gap-2 px-3 py-2 text-white hover:bg-white/10 rounded-md transition-colors no-underline"
+                                                      >
+                                                          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                                          Events
+                                                      </a>
+                                                     <a
+                                                          href="/admin/articles"
                                                          class="flex items-center gap-2 px-3 py-2 text-white hover:bg-white/10 rounded-md transition-colors no-underline"
                                                      >
                                                          <svg
@@ -397,17 +405,26 @@ const userImage = user?.image || null;
                                                 </a>
                                             </li>
                                             <li>
-                                                <a
-                                                    href="/admin/packs"
-                                                    class="flex items-center gap-2 text-white hover:bg-white/10 block px-4 py-2 rounded-md transition-colors no-underline"
-                                                >
-                                                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                                                    Starter Packs
-                                                </a>
-                                            </li>
-                                            <li>
-                                                <a
-                                                    href="/admin/articles"
+                                                 <a
+                                                     href="/admin/packs"
+                                                     class="flex items-center gap-2 text-white hover:bg-white/10 block px-4 py-2 rounded-md transition-colors no-underline"
+                                                 >
+                                                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                                                     Starter Packs
+                                                 </a>
+                                             </li>
+                                             <li>
+                                                  <a
+                                                      href="/admin/events"
+                                                      class="flex items-center gap-2 text-white hover:bg-white/10 block px-4 py-2 rounded-md transition-colors no-underline"
+                                                  >
+                                                      <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                                      Events
+                                                  </a>
+                                              </li>
+                                             <li>
+                                                 <a
+                                                     href="/admin/articles"
                                                     class="flex items-center gap-2 text-white hover:bg-white/10 block px-4 py-2 rounded-md transition-colors no-underline"
                                                 >
                                                     <svg

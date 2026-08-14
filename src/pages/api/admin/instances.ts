@@ -35,6 +35,18 @@ export const POST: APIRoute = async (context) => {
           data: { verified: true },
         });
         break;
+      case "allowPolling":
+        result = await prisma.instance.update({
+          where: { id: instanceId },
+          data: { pollingAllowed: true, verified: true },
+        });
+        break;
+      case "revokePolling":
+        result = await prisma.instance.update({
+          where: { id: instanceId },
+          data: { pollingAllowed: false },
+        });
+        break;
       case "ban":
         result = await prisma.instance.update({
           where: { id: instanceId },

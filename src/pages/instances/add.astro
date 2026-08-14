@@ -3,6 +3,7 @@ export const prerender = false;
 import Layout from "../../layouts/Layout.astro";
 
 const user = Astro.locals.user;
+const prefillDomain = new URL(Astro.request.url).searchParams.get("domain") || "";
 
 if (!user) {
     return Astro.redirect("/auth/login?redirect=/instances/add");
@@ -86,6 +87,7 @@ if (!user.emailVerified) {
                                 required
                                 class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
                                 placeholder="mastodon.social"
+                                value={prefillDomain}
                             />
                             <p class="text-white/50 text-xs mt-1">
                                 Enter the domain without https:// (e.g.
@@ -278,6 +280,22 @@ if (!user.emailVerified) {
                             </label>
                         </div>
 
+                        <div class="flex items-start gap-3">
+                            <input
+                                type="checkbox"
+                                id="instance-polling-consent"
+                                name="consentToPolling"
+                                class="w-5 h-5 mt-0.5 rounded border-white/20 bg-white/5 text-[#31dcb2] focus:ring-[#31dcb2] focus:ring-offset-0"
+                            />
+                            <label
+                                for="instance-polling-consent"
+                                class="text-sm font-medium text-white/80 cursor-pointer"
+                            >
+                                I confirm the instance admin is aware we will poll their public tag timelines
+                                (up to 200 posts per run, max once per hour) to find event-related posts
+                            </label>
+                        </div>
+
                         <button
                             type="submit"
                             id="submit-btn"
@@ -367,6 +385,7 @@ if (!user.emailVerified) {
             var donationLink = document.getElementById("instance-donation").value || null;
             var customInviteLink = document.getElementById("instance-invite").value || null;
             var nsfwAllowed = document.getElementById("instance-nsfw").checked;
+            var pollingAllowed = document.getElementById("instance-polling-consent").checked;
 
             if (instanceType === "misskey" && !adminUsername) {
                 errorMessage.textContent = "Admin username is required for Misskey instances";
@@ -394,6 +413,7 @@ if (!user.emailVerified) {
                         donationLink: donationLink,
                         customInviteLink: customInviteLink,
                         nsfwAllowed: nsfwAllowed,
+                        pollingAllowed: pollingAllowed,
                     }),
                 });
 

@@ -31,6 +31,25 @@ if (searchParam) {
 if (filterParam === "verified") where.verified = true;
 else if (filterParam === "unverified") where.verified = false;
 
+// Find instances referenced in events but not yet in our directory
+const convInstancesRaw = await prisma.event.findMany({
+	select: { instances: true },
+	where: { instances: { not: "" } },
+});
+const allConvDomains = [...new Set(
+	convInstancesRaw.flatMap(c => (c.instances || "").split(",").map(d => d.trim()).filter(Boolean))
+)];
+const existingDomains = await prisma.instance.findMany({
+	select: { domain: true },
+});
+const existingSet = new Set(existingDomains.map(i => i.domain.toLowerCase()));
+const pendingDomains = allConvDomains.filter(d => !existingSet.has(d.toLowerCase()));
+
+// Stats
+const totalInstances = await prisma.instance.count();
+const unverifiedCount = await prisma.instance.count({ where: { verified: false } });
+const pollingAllowedCount = await prisma.instance.count({ where: { pollingAllowed: true } });
+
 const [instances, total] = await Promise.all([
 	prisma.instance.findMany({
 		where,
@@ -41,6 +60,28 @@ const [instances, total] = await Promise.all([
 	}),
 	prisma.instance.count({ where }),
 ]);
+
+// Fetch recent poll logs
+const recentPollLogs = await prisma.eventPollLog.findMany({
+	orderBy: { startedAt: "desc" },
+	take: 20,
+	include: {
+		event: { select: { name: true, slug: true } },
+	},
+});
+
+// Count posts per instance (from events referencing each domain)
+const instancePostCounts: Record<string, number> = {};
+for (const inst of instances) {
+	const count = await prisma.eventPost.count({
+		where: {
+			event: {
+				instances: { contains: inst.domain },
+			},
+		},
+	});
+	instancePostCounts[inst.domain] = count;
+}
 
 const totalPages = Math.ceil(total / limit);
 const currentPage = pageParam;
@@ -61,6 +102,57 @@ const currentPage = pageParam;
 				<span class="text-white/60 text-sm">{total} total instances</span>
 			</div>
 
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+				<div class="bg-[#0D3559] rounded-xl p-5 border border-white/10">
+					<div class="flex items-center gap-3">
+						<div class="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white/60">
+							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+						</div>
+						<div>
+							<p class="text-white/50 text-xs">Total</p>
+							<p class="text-white font-semibold text-xl">{totalInstances}</p>
+						</div>
+					</div>
+				</div>
+				<div class="bg-[#0D3559] rounded-xl p-5 border border-white/10">
+					<div class="flex items-center gap-3">
+						<div class="w-10 h-10 bg-yellow-500/20 rounded-full flex items-center justify-center text-yellow-300">
+							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+						</div>
+						<div>
+							<p class="text-white/50 text-xs">Unverified</p>
+							<p class="text-white font-semibold text-xl">{unverifiedCount}</p>
+						</div>
+					</div>
+				</div>
+				<div class="bg-[#0D3559] rounded-xl p-5 border border-white/10">
+					<div class="flex items-center gap-3">
+						<div class="w-10 h-10 bg-[#31dcb2]/20 rounded-full flex items-center justify-center text-[#31dcb2]">
+							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 5c7.18 0 13 5.82 13 13M6 11a7 7 0 017 7m-6 0a1 1 0 110-2 1 1 0 010 2z"/></svg>
+						</div>
+						<div>
+							<p class="text-white/50 text-xs">Polling Allowed</p>
+							<p class="text-white font-semibold text-xl">{pollingAllowedCount}</p>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			{pendingDomains.length > 0 && (
+				<div class="bg-[#0D3559] rounded-xl p-4 border border-amber-500/30 mb-4">
+					<p class="text-xs font-medium text-amber-300 mb-2">Pending — referenced in events but not in directory yet:</p>
+					<div class="flex flex-wrap gap-2">
+						{pendingDomains.map((domain) => (
+							<a href={`/instances/add?domain=${encodeURIComponent(domain)}`}
+								class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-sm no-underline hover:bg-amber-500/25 transition-colors">
+								{domain}
+								<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+							</a>
+						))}
+					</div>
+				</div>
+			)}
+
 			<div class="bg-[#0D3559] rounded-xl p-6 border border-white/10 mb-6">
 				<div class="flex gap-3">
 					<form method="GET" class="flex-1 flex gap-3">
@@ -69,7 +161,7 @@ const currentPage = pageParam;
 						<button type="submit" class="bg-[#31dcb2] text-[#12384b] font-semibold px-6 py-3 rounded-lg hover:bg-[#28c4a0] transition-colors">Search</button>
 					</form>
 					<div class="flex gap-2">
-						<a href="/admin/instances?{filter=}" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === '' ? 'bg-[#31dcb2] text-[#12384b] border-[#31dcb2]' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">All</a>
+						<a href="/admin/instances" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === '' ? 'bg-[#31dcb2] text-[#12384b] border-[#31dcb2]' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">All</a>
 						<a href="/admin/instances?filter=verified" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === 'verified' ? 'bg-green-500/20 text-green-300 border-green-500/50' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">Verified</a>
 						<a href="/admin/instances?filter=unverified" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === 'unverified' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">Unverified</a>
 					</div>
@@ -83,7 +175,9 @@ const currentPage = pageParam;
 							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Instance</th>
 							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Type</th>
 							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Users</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Posts</th>
 							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Status</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Polling</th>
 							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Added By</th>
 							<th class="text-right px-6 py-4 text-white/60 font-medium text-sm">Actions</th>
 						</tr>
@@ -101,11 +195,19 @@ const currentPage = pageParam;
 									<span class="px-2 py-1 bg-blue-500/20 text-blue-300 rounded text-xs font-medium capitalize">{instance.instanceType}</span>
 								</td>
 								<td class="px-6 py-4 text-white/60">{instance.userCount.toLocaleString()}</td>
+								<td class="px-6 py-4 text-white/60">{instancePostCounts[instance.domain]?.toLocaleString() || "0"}</td>
 								<td class="px-6 py-4">
 									{instance.verified ? (
 										<span class="px-2 py-1 bg-green-500/20 text-green-300 rounded text-xs font-medium">Verified</span>
 									) : (
 										<span class="px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded text-xs font-medium">Unverified</span>
+									)}
+								</td>
+								<td class="px-6 py-4">
+									{instance.pollingAllowed ? (
+										<span class="px-2 py-1 bg-[#31dcb2]/20 text-[#31dcb2] rounded text-xs font-medium">Allowed</span>
+									) : (
+										<span class="px-2 py-1 bg-gray-500/20 text-gray-300 rounded text-xs font-medium">Blocked</span>
 									)}
 								</td>
 								<td class="px-6 py-4 text-white/60 text-sm">
@@ -114,13 +216,23 @@ const currentPage = pageParam;
 								<td class="px-6 py-4">
 									<div class="flex items-center justify-end gap-2">
 										{!instance.verified && (
-											<button class="p-2 rounded hover:bg-white/10 transition-colors" data-instance-id={instance.id} data-action="forceApprove" title="Force approve">
+											<button class="p-2 rounded hover:bg-white/10 transition-colors" data-instance-id={instance.id} data-action="forceApprove" title="Verify instance">
 												<svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
 											</button>
 										)}
 										{instance.verified && (
 											<button class="p-2 rounded hover:bg-white/10 transition-colors" data-instance-id={instance.id} data-action="ban" title="Remove verification">
 												<svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+											</button>
+										)}
+										{!instance.pollingAllowed && instance.verified && (
+											<button class="p-2 rounded hover:bg-white/10 transition-colors" data-instance-id={instance.id} data-action="allowPolling" title="Allow polling (consent confirmation)">
+												<svg class="w-4 h-4 text-[#31dcb2]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 5c7.18 0 13 5.82 13 13M6 11a7 7 0 017 7m-6 0a1 1 0 110-2 1 1 0 010 2z"/></svg>
+											</button>
+										)}
+										{instance.pollingAllowed && (
+											<button class="p-2 rounded hover:bg-white/10 transition-colors" data-instance-id={instance.id} data-action="revokePolling" title="Stop polling">
+												<svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 5c7.18 0 13 5.82 13 13M6 11a7 7 0 017 7m-6 0a1 1 0 110-2 1 1 0 010 2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18"/></svg>
 											</button>
 										)}
 										<button class="p-2 rounded hover:bg-white/10 transition-colors" data-instance-id={instance.id} data-action="delete" title="Delete instance">
@@ -152,6 +264,50 @@ const currentPage = pageParam;
 					</div>
 				</div>
 			)}
+			<!-- Polling Log -->
+			<div class="mt-8 bg-[#0D3559] rounded-xl border border-white/10 overflow-hidden">
+				<div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+					<h2 class="text-white font-semibold">Recent Polling Activity</h2>
+					<span class="text-white/40 text-xs">{recentPollLogs.length} entries</span>
+				</div>
+				<div class="overflow-x-auto">
+					<table class="w-full">
+						<thead class="bg-white/5 border-b border-white/10">
+							<tr>
+								<th class="text-left px-4 py-3 text-white/60 font-medium text-xs">Time</th>
+								<th class="text-left px-4 py-3 text-white/60 font-medium text-xs">Event</th>
+								<th class="text-center px-4 py-3 text-white/60 font-medium text-xs">Posts</th>
+								<th class="text-center px-4 py-3 text-white/60 font-medium text-xs">Status</th>
+								<th class="text-left px-4 py-3 text-white/60 font-medium text-xs">Errors</th>
+							</tr>
+						</thead>
+						<tbody>
+							{recentPollLogs.length === 0 && (
+								<tr><td colspan="5" class="px-4 py-8 text-center text-white/40 text-sm">No polling activity yet</td></tr>
+							)}
+							{recentPollLogs.map((log) => (
+								<tr class="border-b border-white/5 hover:bg-white/5 transition-colors text-sm">
+									<td class="px-4 py-3 text-white/60 whitespace-nowrap">{new Date(log.startedAt).toLocaleString()}</td>
+									<td class="px-4 py-3">
+										<a href={`/events/${log.event.slug}`} class="text-[#31dcb2] hover:underline no-underline">
+											{log.event.name}
+										</a>
+									</td>
+									<td class="px-4 py-3 text-center text-white/80">{log.newPosts} / {log.totalPosts}</td>
+									<td class="px-4 py-3 text-center">
+										{log.status === "running" && <span class="text-blue-300 animate-pulse">Running</span>}
+										{log.status === "completed" && <span class="text-green-300">Completed</span>}
+										{log.status === "failed" && <span class="text-red-300">Failed</span>}
+									</td>
+									<td class="px-4 py-3 text-white/50 text-xs max-w-[200px] truncate" title={log.errors}>
+										{log.errors || "—"}
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+			</div>
 		</div>
 	</main>
 </Layout>
@@ -190,14 +346,28 @@ const currentPage = pageParam;
 
 			if (!instanceId || !action) return;
 
-			const confirmMsg = action === "forceApprove" ? "Force approve this instance?" : action === "ban" ? "Remove verification from this instance?" : "Delete this instance permanently?";
-			if (!confirm(confirmMsg)) return;
+			const confirmMessages: Record<string, string> = {
+				forceApprove: "Verify this instance?",
+				allowPolling: "I confirm that the instance admin is aware we will poll their public tag timelines (up to 200 posts per run, max once per hour). Continue?",
+				ban: "Remove verification from this instance?",
+				delete: "Delete this instance permanently?",
+				revokePolling: "Revoke polling consent for this instance?",
+			};
+			const confirmMsg = confirmMessages[action];
+			if (confirmMsg && !confirm(confirmMsg)) return;
 
 			target.classList.add("opacity-50", "pointer-events-none");
 
 			try {
 				await callInstanceAction(action, instanceId);
-				showToast(action === "forceApprove" ? "Instance approved" : action === "ban" ? "Instance unverified" : "Instance deleted");
+				const toastLabels: Record<string, string> = {
+					forceApprove: "Instance verified",
+					allowPolling: "Polling enabled — consent recorded",
+					revokePolling: "Polling consent revoked",
+					ban: "Instance unverified",
+					delete: "Instance deleted",
+				};
+				showToast(toastLabels[action] || "Action done");
 				setTimeout(() => window.location.reload(), 500);
 			} catch (err: unknown) {
 				const msg = err instanceof Error ? err.message : "Action failed";

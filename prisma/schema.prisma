@@ -33,6 +33,8 @@ model User {
   starterPacks       StarterPack[]
   starterPackAccounts StarterPackAccount[]
   followAllClicks    FollowAllClick[]
+  events           Event[]
+  eventAccounts    EventAccount[]
 
   @@unique([email])
   @@map("user")
@@ -175,6 +177,7 @@ model Instance {
   addedByUserId    String
   addedBy          User     @relation(fields: [addedByUserId], references: [id], onDelete: Cascade)
   verified         Boolean  @default(false)
+  pollingAllowed   Boolean  @default(false)
   verificationKey  InstanceApiKey?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -283,4 +286,135 @@ model FollowAllClick {
 
   @@index([starterPackId, createdAt])
   @@map("follow_all_click")
+}
+
+model Event {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String
+  location        String   @default("")
+  startDate       DateTime?
+  endDate         DateTime?
+  timeZone        String   @default("UTC")
+  archivedDate    DateTime?
+  website         String   @default("")
+  mastodon        String   @default("")
+  description     String   @default("")
+  postsAfter      DateTime?
+  instances       String   @default("")
+  tags            String   @default("")
+  days            String   @default("")
+  dayStyles       String   @default("")
+  tagBlacklist    String   @default("")
+  numberMatch     Boolean  @default(false)
+  status          String   @default("draft")
+  submittedAt     DateTime?
+  publishedAt     DateTime?
+  deletedAt       DateTime?
+  createdById     String
+  createdBy       User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  splashImage           String   @default("")
+  splashImageSignature  String   @default("")
+  splashImageUpdatedAt  DateTime?
+  splashImageNeedsUpdate Boolean @default(false)
+  numPosts         Int      @default(0)
+  numAccounts      Int      @default(0)
+
+  eventAccounts EventAccount[]
+  eventPosts    EventPost[]
+  eventLookups  EventLookup[]
+  minIds   MinId[]
+  eventPollLogs EventPollLog[]
+
+  @@unique([slug])
+  @@index([createdById])
+  @@index([status])
+  @@index([publishedAt])
+  @@index([deletedAt])
+  @@map("event")
+}
+
+model EventLookup {
+  id            String     @id @default(cuid())
+  eventId       String
+  event         Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  language      String
+
+  @@unique([eventId, language])
+  @@map("event_lookup")
+}
+
+model EventAccount {
+  id            String     @id @default(cuid())
+  eventId       String
+  event         Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  accountId     String
+  displayName   String?
+  handle        String?
+  avatarUrl     String?
+  count         Int        @default(0)
+  createdById   String
+  createdBy     User       @relation(fields: [createdById], references: [id])
+
+  @@unique([eventId, accountId])
+  @@index([eventId])
+  @@map("event_account")
+}
+
+model EventPost {
+  id              String     @id @default(cuid())
+  eventId         String
+  event           Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  postId          String
+  createdAt       DateTime?
+  favouritesCount Int?
+  reblogsCount    Int?
+  repliesCount    Int?
+  visibility      String?
+  accountId       String?
+  content         String?
+  url             String?
+  sourceInstance  String?
+  mediaCount      Int      @default(0)
+
+  @@unique([eventId, postId])
+  @@index([eventId, createdAt])
+  @@index([eventId, favouritesCount])
+  @@index([eventId, reblogsCount])
+  @@index([eventId, repliesCount])
+  @@index([eventId, accountId, createdAt])
+  @@index([eventId, accountId, favouritesCount])
+  @@index([eventId, accountId, reblogsCount])
+  @@index([eventId, accountId, repliesCount])
+  @@map("event_post")
+}
+
+model EventPollLog {
+  id            String     @id @default(cuid())
+  eventId       String
+  event         Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  startedAt     DateTime   @default(now())
+  completedAt   DateTime?
+  status        String     @default("running") // "running", "completed", "failed"
+  newPosts      Int        @default(0)
+  totalPosts    Int        @default(0)
+  errors        String     @default("")
+  triggeredBy   String?
+
+  @@index([eventId])
+  @@index([startedAt])
+  @@map("event_poll_log")
+}
+
+model MinId {
+  id            String     @id @default(cuid())
+  eventId       String
+  event         Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  instance      String
+  minId         String     @default("0")
+
+  @@unique([eventId, instance])
+  @@map("min_id")
 }

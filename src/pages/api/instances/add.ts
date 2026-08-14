@@ -101,7 +101,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     try {
         const body = await request.json();
-        const { domain, instanceType, adminUsername, country, primaryLanguage, donationLink, customInviteLink, nsfwAllowed } = body;
+        const { domain, instanceType, adminUsername, country, primaryLanguage, donationLink, customInviteLink, nsfwAllowed, pollingAllowed } = body;
 
         if (!domain || !instanceType) {
             return new Response(
@@ -170,6 +170,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
                 registrations: instanceData.registrations,
                 approvalRequired: instanceData.approval_required,
                 nsfwAllowed: nsfwAllowed || false,
+                pollingAllowed: pollingAllowed || false,
                 country: country || null,
                 primaryLanguage: primaryLanguage || null,
                 donationLink: donationLink || null,

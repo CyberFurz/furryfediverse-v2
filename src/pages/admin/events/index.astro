@@ -1,0 +1,347 @@
+---
+export const prerender = false;
+import Layout from "../../../layouts/Layout.astro";
+import { prisma } from "../../../lib/prisma";
+
+const user = Astro.locals.user;
+
+if (!user) {
+	return Astro.redirect("/auth/login");
+}
+
+const roles = (user.role || "user").split(",");
+const isAdmin = roles.includes("admin");
+if (!isAdmin) {
+	return Astro.redirect("/auth/dashboard");
+}
+
+const searchParam = new URL(Astro.request.url).searchParams.get("search") || "";
+const filterParam = new URL(Astro.request.url).searchParams.get("filter") || "";
+const pageParam = parseInt(new URL(Astro.request.url).searchParams.get("page") || "1");
+const limit = 20;
+
+const where: any = {};
+
+if (filterParam) {
+	where.status = filterParam;
+}
+
+if (searchParam) {
+	where.OR = [
+		{ name: { contains: searchParam, mode: "insensitive" } },
+		{ slug: { contains: searchParam, mode: "insensitive" } },
+		{ createdBy: { name: { contains: searchParam, mode: "insensitive" } } },
+	];
+}
+
+const [events, total] = await Promise.all([
+	prisma.event.findMany({
+		where,
+		orderBy: { createdAt: "desc" },
+		take: limit,
+		skip: (pageParam - 1) * limit,
+		include: {
+			createdBy: { select: { id: true, name: true } },
+			_count: { select: { eventPosts: true, eventAccounts: true } },
+		},
+	}),
+	prisma.event.count({ where }),
+]);
+
+const totalEvents = await prisma.event.count();
+const approvedEvents = await prisma.event.count({
+	where: { status: "approved", publishedAt: { not: null } },
+});
+const pendingEvents = await prisma.event.count({
+	where: { status: "pending" },
+});
+const totalPosts = await prisma.eventPost.count();
+const totalAccounts = await prisma.eventAccount.count();
+
+const totalPages = Math.ceil(total / limit);
+const currentPage = pageParam;
+
+const statusLabels: Record<string, string> = {
+	approved: "Approved",
+	pending: "Pending",
+	draft: "Draft",
+	rejected: "Rejected",
+};
+
+const statusColors: Record<string, string> = {
+	approved: "bg-green-500/20 text-green-300",
+	pending: "bg-amber-500/20 text-amber-300",
+	draft: "bg-yellow-500/20 text-yellow-300",
+	rejected: "bg-red-500/20 text-red-300",
+};
+---
+
+<Layout title="Events - Admin - Furry Fediverse">
+	<main class="p-2 md:p-5 lg:px-60 2xl:px-80">
+		<div class="py-8">
+			<div class="flex items-center justify-between mb-8">
+				<div>
+					<h1 class="text-3xl font-bold text-white">
+						<span class="text-[#31dcb2]">Events</span>
+					</h1>
+					<a href="/admin" class="text-white/60 text-sm hover:text-[#31dcb2] transition-colors no-underline">
+						&larr; Back to Admin Dashboard
+					</a>
+				</div>
+				<span class="text-white/60 text-sm">{total} total events</span>
+			</div>
+
+			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+				<div class="bg-[#0D3559] rounded-xl p-6 border border-white/10">
+					<div class="flex items-center gap-4">
+						<div class="w-12 h-12 bg-[#31dcb2] rounded-full flex items-center justify-center text-[#12384b]">
+							<i class="fa-solid fa-calendar w-6 h-6"></i>
+						</div>
+						<div>
+							<p class="text-white/60 text-sm">Total</p>
+							<p class="text-white font-semibold text-2xl">{totalEvents}</p>
+						</div>
+					</div>
+				</div>
+
+				<div class="bg-[#0D3559] rounded-xl p-6 border border-white/10">
+					<div class="flex items-center gap-4">
+						<div class="w-12 h-12 bg-green-500/30 rounded-full flex items-center justify-center text-green-300">
+							<i class="fa-solid fa-circle-check w-6 h-6"></i>
+						</div>
+						<div>
+							<p class="text-white/60 text-sm">Approved</p>
+							<p class="text-white font-semibold text-2xl">{approvedEvents}</p>
+						</div>
+					</div>
+				</div>
+
+				<div class="bg-[#0D3559] rounded-xl p-6 border border-white/10">
+					<div class="flex items-center gap-4">
+						<div class="w-12 h-12 bg-amber-500/30 rounded-full flex items-center justify-center text-amber-300">
+							<i class="fa-solid fa-circle-exclamation w-6 h-6"></i>
+						</div>
+						<div>
+							<p class="text-white/60 text-sm">Pending</p>
+							<p class="text-white font-semibold text-2xl">{pendingEvents}</p>
+						</div>
+					</div>
+				</div>
+
+				<div class="bg-[#0D3559] rounded-xl p-6 border border-white/10">
+					<div class="flex items-center gap-4">
+						<div class="w-12 h-12 bg-blue-500/30 rounded-full flex items-center justify-center text-blue-300">
+							<i class="fa-solid fa-users w-6 h-6"></i>
+						</div>
+						<div>
+							<p class="text-white/60 text-sm">Total Posts</p>
+							<p class="text-white font-semibold text-2xl">{totalPosts.toLocaleString()}</p>
+						</div>
+					</div>
+				</div>
+
+				<div class="bg-[#0D3559] rounded-xl p-6 border border-white/10">
+					<div class="flex items-center gap-4">
+						<div class="w-12 h-12 bg-purple-500/30 rounded-full flex items-center justify-center text-purple-300">
+							<i class="fa-solid fa-user w-6 h-6"></i>
+						</div>
+						<div>
+							<p class="text-white/60 text-sm">Total Accounts</p>
+							<p class="text-white font-semibold text-2xl">{totalAccounts.toLocaleString()}</p>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="bg-[#0D3559] rounded-xl p-6 border border-white/10 mb-6">
+				<div class="flex gap-3">
+					<form method="GET" class="flex-1 flex gap-3">
+						<input type="hidden" name="filter" value={filterParam} />
+						<input type="text" name="search" value={searchParam} placeholder="Search by name, slug, or creator..." class="flex-1 px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2]" />
+						<button type="submit" class="bg-[#31dcb2] text-[#12384b] font-semibold px-6 py-3 rounded-lg hover:bg-[#28c4a0] transition-colors">Search</button>
+					</form>
+					<div class="flex gap-2 flex-wrap">
+						<a href="/admin/events" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === '' ? 'bg-[#31dcb2] text-[#12384b] border-[#31dcb2]' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">All</a>
+						<a href="/admin/events?filter=draft" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === 'draft' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">Draft</a>
+						<a href="/admin/events?filter=pending" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === 'pending' ? 'bg-amber-500/20 text-amber-300 border-amber-500/50' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">Pending</a>
+						<a href="/admin/events?filter=approved" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === 'approved' ? 'bg-green-500/20 text-green-300 border-green-500/50' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">Approved</a>
+						<a href="/admin/events?filter=rejected" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === 'rejected' ? 'bg-red-500/20 text-red-300 border-red-500/50' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">Rejected</a>
+					</div>
+				</div>
+			</div>
+
+			<div class="bg-[#0D3559] rounded-xl border border-white/10 overflow-hidden">
+				<table class="w-full">
+					<thead class="bg-white/5 border-b border-white/10">
+						<tr>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Name</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Slug</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Creator</th>
+							<th class="text-center px-6 py-4 text-white/60 font-medium text-sm">Posts</th>
+							<th class="text-center px-6 py-4 text-white/60 font-medium text-sm">Accounts</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Status</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Dates</th>
+							<th class="text-right px-6 py-4 text-white/60 font-medium text-sm">Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						{events.map((event) => {
+							const status = event.status || "draft";
+							return (
+								<tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+									<td class="px-6 py-4">
+										<a href={`/events/${event.slug}`} class="text-white font-medium truncate max-w-[200px] hover:text-[#31dcb2] transition-colors no-underline block" title={event.name}>
+											{event.name}
+										</a>
+									</td>
+									<td class="px-6 py-4">
+										<code class="text-white/60 text-xs font-mono">{event.slug}</code>
+									</td>
+									<td class="px-6 py-4 text-white/80">
+										{event.createdBy.name}
+									</td>
+									<td class="px-6 py-4 text-center text-white/80">
+										{event._count.eventPosts}
+									</td>
+									<td class="px-6 py-4 text-center text-white/80">
+										{event._count.eventAccounts}
+									</td>
+									<td class="px-6 py-4">
+										<span class={`px-2 py-1 rounded text-xs font-medium ${statusColors[status] || 'bg-white/10 text-white/60'}`}>
+											{statusLabels[status] || status}
+										</span>
+									</td>
+									<td class="px-6 py-4 text-white/60 text-sm whitespace-nowrap">
+										{event.startDate ? event.startDate.toLocaleDateString() : "?"} - {event.endDate ? event.endDate.toLocaleDateString() : "?"}
+									</td>
+									<td class="px-6 py-4">
+										<div class="flex items-center justify-end gap-2">
+											{status === "pending" && (
+												<>
+													<button class="p-2 rounded hover:bg-white/10 transition-colors"
+														data-event-id={event.id} data-action="approve" title="Approve">
+														<i class="fa-solid fa-circle-check w-4 h-4 text-green-400"></i>
+													</button>
+													<button class="p-2 rounded hover:bg-white/10 transition-colors"
+														data-event-id={event.id} data-action="reject" title="Reject">
+														<i class="fa-solid fa-xmark w-4 h-4 text-red-400"></i>
+													</button>
+												</>
+											)}
+											<button class="p-2 rounded hover:bg-white/10 transition-colors"
+												data-event-id={event.id} data-action="reindex" title="Re-index">
+												<i class="fa-solid fa-rotate-right w-4 h-4 text-purple-400"></i>
+											</button>
+											<button class="p-2 rounded hover:bg-white/10 transition-colors"
+												data-event-id={event.id} data-action="clear-posts" title="Clear all indexed posts">
+												<i class="fa-solid fa-trash w-4 h-4 text-orange-400"></i>
+											</button>
+											{status !== "rejected" ? (
+												<button class="p-2 rounded hover:bg-white/10 transition-colors"
+													data-event-id={event.id} data-action="delete" title="Delete">
+													<i class="fa-solid fa-trash w-4 h-4 text-red-400"></i>
+												</button>
+											) : (
+												<button class="p-2 rounded hover:bg-white/10 transition-colors"
+													data-event-id={event.id} data-action="restore" title="Restore">
+													<i class="fa-solid fa-rotate-right w-4 h-4 text-green-400"></i>
+												</button>
+											)}
+										</div>
+									</td>
+								</tr>
+							);
+						})}
+					</tbody>
+				</table>
+				{events.length === 0 && (
+					<div class="p-8 text-center text-white/60">No events found</div>
+				)}
+			</div>
+
+			{totalPages > 1 && (
+				<div class="flex items-center justify-between mt-6">
+					<p class="text-white/60 text-sm">
+						Showing {(currentPage - 1) * limit + 1} to {Math.min(currentPage * limit, total)} of {total}
+					</p>
+					<div class="flex gap-2">
+						{currentPage > 1 && (
+							<a href={`/admin/events?${searchParam ? `search=${searchParam}&` : ""}${filterParam ? `filter=${filterParam}&` : ""}page=${currentPage - 1}`} class="px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors no-underline">Previous</a>
+						)}
+						{currentPage < totalPages && (
+							<a href={`/admin/events?${searchParam ? `search=${searchParam}&` : ""}${filterParam ? `filter=${filterParam}&` : ""}page=${currentPage + 1}`} class="px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors no-underline">Next</a>
+						)}
+					</div>
+				</div>
+			)}
+		</div>
+	</main>
+</Layout>
+
+<div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+<script>
+	const toastContainer = document.getElementById("toast-container");
+
+	function showToast(message: string, type: "success" | "error" = "success") {
+		const toast = document.createElement("div");
+		toast.className = `px-4 py-3 rounded-lg shadow-lg text-white text-sm ${type === "success" ? "bg-green-600" : "bg-red-600"}`;
+		toast.textContent = message;
+		toastContainer?.appendChild(toast);
+		setTimeout(() => toast.remove(), 3000);
+	}
+
+	async function callAction(action: string, eventId: string) {
+		const res = await fetch("/api/admin/events", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ action, eventId }),
+		});
+		const data = await res.json();
+		if (!res.ok) {
+			throw new Error(data.error || "Action failed");
+		}
+		return data;
+	}
+
+	document.querySelectorAll("[data-action]").forEach((btn) => {
+		btn.addEventListener("click", async (e) => {
+			const target = e.currentTarget as HTMLElement;
+			const eventId = target.dataset.eventId;
+			const action = target.dataset.action;
+
+			if (!eventId || !action) return;
+
+			const confirmMessages: Record<string, string> = {
+				delete: "Delete this event?",
+				restore: "Restore this event?",
+				approve: "Approve this event? It will be published publicly.",
+				reject: "Reject this event?",
+				reindex: "Re-index this event's Mastodon posts?",
+				"clear-posts": "Delete ALL indexed posts, accounts, and indexing cursors for this event? The next index run will start fresh.",
+			};
+			const confirmMsg = confirmMessages[action] || "Are you sure?";
+			if (!confirm(confirmMsg)) return;
+
+			target.classList.add("opacity-50", "pointer-events-none");
+
+			try {
+				await callAction(action, eventId);
+				const actionLabels: Record<string, string> = {
+					delete: "Event deleted",
+					restore: "Event restored",
+					approve: "Event approved",
+					reject: "Event rejected",
+					reindex: "Re-index triggered",
+					"clear-posts": "Posts cleared",
+				};
+				showToast(actionLabels[action] || "Action done");
+				setTimeout(() => window.location.reload(), 500);
+			} catch (err: unknown) {
+				const msg = err instanceof Error ? err.message : "Action failed";
+				showToast(msg, "error");
+				target.classList.remove("opacity-50", "pointer-events-none");
+			}
+		});
+	});
+</script>
