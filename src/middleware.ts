@@ -7,9 +7,17 @@ export const onRequest = defineMiddleware(async (context, next) => {
   if (siteUrl) {
     try {
       const target = new URL(siteUrl);
-      const current = new URL(context.request.url);
-      if (current.origin !== target.origin) {
-        const redirectUrl = new URL(current.pathname + current.search, target);
+      const requestUrl = new URL(context.request.url);
+      // Behind a TLS-terminating proxy the request scheme seen by the app is
+      // http while SITE_URL is https. Honor X-Forwarded-Proto (which the node
+      // adapter already does in production) so the origin comparison doesn't
+      // redirect every request to itself, while still enforcing scheme/host/
+      // port — including the http->https upgrade on direct http access.
+      const forwardedProto = context.request.headers.get("x-forwarded-proto");
+      const proto = forwardedProto?.split(",")[0]?.trim() || requestUrl.protocol.replace(":", "");
+      const current = `${proto}://${requestUrl.host}`;
+      if (current !== target.origin) {
+        const redirectUrl = new URL(requestUrl.pathname + requestUrl.search, target);
         return context.redirect(redirectUrl.toString(), 301);
       }
     } catch {

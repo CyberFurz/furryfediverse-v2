@@ -2,9 +2,15 @@
 export const prerender = false;
 import Layout from "../../../layouts/Layout.astro";
 import PackAccounts from "../../../components/PackAccounts";
+import { prisma } from "../../../lib/prisma";
 const user = Astro.locals.user;
 const { slug } = Astro.params;
 if (!slug) return Astro.redirect("/packs");
+
+const pack = await prisma.starterPack.findFirst({
+    where: { slug, deletedAt: null },
+    select: { title: true },
+});
 
 if (!user) {
     return Astro.redirect("/auth/login?redirect=/packs/" + slug + "/accounts");
@@ -21,6 +27,10 @@ if (!user) {
                 <i class="fa-solid fa-chevron-right w-4 h-4 text-[#12384b]"></i>
                 <a href="/packs" class="text-[#12384b] font-semibold"
                     >Starter Packs</a
+                >
+                <i class="fa-solid fa-chevron-right w-4 h-4 text-[#12384b]"></i>
+                <a href={`/packs/${slug}`} class="text-[#12384b] font-semibold"
+                    >{pack?.title ?? "Pack"}</a
                 >
                 <i class="fa-solid fa-chevron-right w-4 h-4 text-[#12384b]"></i>
                 <span class="text-[#12384b] font-semibold">Manage Accounts</span>

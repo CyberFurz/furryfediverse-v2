@@ -6,15 +6,18 @@ import { faSpinner, faEllipsisVertical, faUserPlus } from "@fortawesome/free-sol
 interface PackAccount {
     name: string; handle: string; url: string; avatar: string;
     followers_count: number; bot: boolean; discoverable: boolean;
+    following?: boolean;
 }
 interface PackDetail {
     url?: string; title: string; description: string;
     created_by: string | { id: string; name: string; avatar?: string };
     created_at: string; published_at: string | null;
+    followingKnown?: boolean;
     accounts: PackAccount[];
 }
 interface FollowAllResult {
     followed: string[] | number;
+    requested: string[];
     skipped: number;
     skippedAlreadyFollowing: number;
     errors: Array<{ acct: string; error: string }>;
@@ -69,7 +72,11 @@ function AccountCard({ a }: { a: PackAccount }) {
                 </div>
             </div>
             {a.followers_count > 0 && <p className="text-xs text-white/50">{a.followers_count.toLocaleString()} followers</p>}
-            {a.url ? (
+            {a.following ? (
+                <span className="mt-3 inline-flex items-center gap-1.5 w-full justify-center py-1.5 px-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm font-medium">
+                    Following
+                </span>
+            ) : a.url ? (
                 <a
                     href={a.url}
                     target="_blank"
@@ -180,6 +187,7 @@ export default function SharePack({ slug, user = null, hasLinkedProfile = false 
             const r: FollowAllResult = await res.json();
             setFollowResult({
                 followed: r.followed ?? [],
+                requested: r.requested ?? [],
                 skipped: r.skipped ?? 0,
                 skippedAlreadyFollowing: r.skippedAlreadyFollowing ?? 0,
                 errors: r.errors ?? [],
@@ -208,7 +216,7 @@ export default function SharePack({ slug, user = null, hasLinkedProfile = false 
     }, [slug, fetchPack]);
 
     const handleDelete = useCallback(async () => {
-        if (!window.confirm("Are you sure you want to permanently delete this starter pack?")) return;
+        if (!window.confirm("Are you sure you want to delete this starter pack? It will be hidden from the community and can be restored by an admin.")) return;
         setDeleting(true);
         try {
             const res = await fetch(`/api/packs/${slug}`, { method: "DELETE" });
@@ -228,6 +236,16 @@ export default function SharePack({ slug, user = null, hasLinkedProfile = false 
     const creatorAcct = pack && typeof pack.created_by === "object" ? (pack.created_by as any).acct || null : null;
     const isOwner = !!(user && creatorId && user.id === creatorId);
     const accountCount = pack?.accounts.length ?? 0;
+    // Only hide the batch-follow button when we actually know the viewer's
+    // following state (followingKnown) and they follow every account.
+    const allFollowed = !!pack?.followingKnown && accountCount > 0 && pack.accounts.every((a) => a.following);
+    // How many accounts are still left to follow (null when unknown).
+    const remainingToFollow = pack?.followingKnown
+        ? pack.accounts.filter((a) => !a.following).length
+        : null;
+    const nextBatchCount = remainingToFollow !== null && remainingToFollow > 0
+        ? Math.min(remainingToFollow, 25)
+        : null;
     const serverCount = pack?.accounts
         ? new Set(pack.accounts.map((a) => a.handle.split("@").pop() || "").filter(Boolean)).size
         : 0;
@@ -309,6 +327,19 @@ export default function SharePack({ slug, user = null, hasLinkedProfile = false 
                             ) : (
                                 <p>No new accounts followed this round.</p>
                             )}
+                            {(followResult.requested?.length ?? 0) > 0 && (
+                                <>
+                                    <p className="mt-2">
+                                        Follow requested for {followResult.requested.length} account{followResult.requested.length !== 1 ? "s" : ""} (awaiting approval):
+                                    </p>
+                                    <ul className="mt-1 space-y-0.5 text-xs text-white/70">
+                                        {followResult.requested.map((h) => <li key={h}>{h}</li>)}
+                                    </ul>
+                                    <p className="mt-2 text-xs text-white/60">
+                                        These accounts require follow approval on their instance. The requests are pending until they're accepted.
+                                    </p>
+                                </>
+                            )}
                             {(followResult.skippedAlreadyFollowing ?? 0) > 0 && (
                                 <p className="mt-1 text-xs text-white/60">
                                     Skipped {followResult.skippedAlreadyFollowing} you already follow.
@@ -346,13 +377,24 @@ export default function SharePack({ slug, user = null, hasLinkedProfile = false 
                             {" "}
                             <a href="/auth/settings" className="text-[#31dcb2] hover:underline font-medium">Link Account</a>
                         </div>
+                    ) : allFollowed ? (
+                        <div className="p-4 rounded-xl text-sm border bg-emerald-500/10 border-emerald-500/30 text-emerald-300">
+                            You already follow everyone in this pack.
+                            {" "}
+                            <a href={`/api/packs/${slug}/follow?format=csv`} className="text-[#31dcb2] hover:underline" download>
+                                Download the full list as CSV
+                            </a>{" "}
+                            to import on your own server.
+                        </div>
                     ) : (
                         <>
-                            <button onClick={handleFollowAll} disabled={following || accountCount === 0}
+                            <button onClick={handleFollowAll} disabled={following || accountCount === 0 || (nextBatchCount ?? 25) === 0}
                                 className="w-full py-3 bg-[#31dcb2] text-[#12384b] font-semibold rounded-xl hover:bg-[#28c4a0] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-base">
                                 {following
-                                    ? <span className="flex items-center justify-center gap-2">{spin} Following next 25 accounts...</span>
-                                    : "Follow next 25 accounts"
+                                    ? <span className="flex items-center justify-center gap-2">{spin} Following...</span>
+                                    : nextBatchCount !== null
+                                        ? `Follow next ${nextBatchCount} account${nextBatchCount !== 1 ? "s" : ""}`
+                                        : "Follow next 25 accounts"
                                 }
                             </button>
                             <p className="text-white/40 text-xs">

@@ -266,6 +266,9 @@ model StarterPackAccount {
   linkedProfileId String?
   linkedProfile   LinkedProfile? @relation(fields: [linkedProfileId], references: [id])
   handle          String?
+  displayName     String?
+  avatarUrl       String?
+  profileUrl      String?
   createdAt       DateTime       @default(now())
   createdById     String
   createdBy       User           @relation(fields: [createdById], references: [id])

@@ -36,3 +36,5 @@ public/cache/
 
 /generated/prisma
 .kilo/
+# Exploratory work (test blueprints, scratch)
+.tmp/

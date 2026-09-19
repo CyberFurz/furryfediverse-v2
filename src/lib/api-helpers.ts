@@ -36,4 +36,27 @@ export function isAdmin(user: { role?: string | null }): boolean {
     return (user.role || "user").split(",").includes("admin");
 }
 
+/**
+ * Validate a starter-pack title/description field: must be a string, non-empty
+ * after trimming, and within `maxLength`. Returns the trimmed value on success
+ * or a user-facing error message on failure.
+ */
+export function validatePackTextField(
+    value: unknown,
+    field: "Title" | "Description",
+    maxLength: number,
+): { ok: true; value: string } | { ok: false; error: string } {
+    if (typeof value !== "string") {
+        return { ok: false, error: `${field} must be a string` };
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return { ok: false, error: `${field} cannot be empty` };
+    }
+    if (trimmed.length > maxLength) {
+        return { ok: false, error: `${field} must be ${maxLength} characters or less` };
+    }
+    return { ok: true, value: trimmed };
+}
+
 export type { APIRoute };

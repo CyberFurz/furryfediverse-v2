@@ -2,7 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from "astro";
 import { prisma } from "../../../lib/prisma";
-import { requireUser } from "../../../lib/api-helpers";
+import { requireUser, validatePackTextField } from "../../../lib/api-helpers";
 
 export const GET: APIRoute = async ({ url, locals }) => {
     try {
@@ -61,6 +61,14 @@ export const GET: APIRoute = async ({ url, locals }) => {
                     linkedProfileId: { in: linkedProfileIds },
                 },
             };
+
+            // Only approved, published packs may be discovered via
+            // "containing" — same gate as the community tab, so draft /
+            // pending / rejected packs can't be enumerated this way even
+            // if the viewer's profile is in them. Owners see their own
+            // packs via tab=your instead.
+            where.status = "approved";
+            where.publishedAt = { not: null };
         }
 
         if (q) {
@@ -123,17 +131,27 @@ export const POST: APIRoute = async ({ request, locals }) => {
         const body = await request.json();
         const { title, description } = body;
 
-        if (!title || !description) {
+        // Validate both fields with the same rules as PUT; per-field errors
+        // are clearer than a combined "required" message.
+        const titleRes = validatePackTextField(title, "Title", 120);
+        if (!titleRes.ok) {
             return new Response(
-                JSON.stringify({ error: "Title and description are required" }),
+                JSON.stringify({ error: titleRes.error }),
+                { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+        }
+        const descRes = validatePackTextField(description, "Description", 2000);
+        if (!descRes.ok) {
+            return new Response(
+                JSON.stringify({ error: descRes.error }),
                 { status: 400, headers: { "Content-Type": "application/json" } }
             );
         }
 
         const pack = await prisma.starterPack.create({
             data: {
-                title,
-                description,
+                title: titleRes.value,
+                description: descRes.value,
                 slug: "", // will update after we know the id
                 createdById: user.id,
             },

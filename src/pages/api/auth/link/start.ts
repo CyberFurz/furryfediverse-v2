@@ -42,7 +42,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     const baseUrl = `https://${cleanDomain}`;
     const redirectUri = `${SITE_URL}/api/auth/link/callback`;
 
-    const client = generator(provider.megadonType, baseUrl);
+    const client = generator(provider.megalodonType, baseUrl);
     const appData = await client.registerApp(CLIENT_NAME, {
       scopes: [provider.readScope],
       redirect_uris: redirectUri,

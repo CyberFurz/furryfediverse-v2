@@ -2,7 +2,10 @@ export const prerender = false;
 
 import type { APIRoute } from "astro";
 import { prisma } from "../../../../lib/prisma";
-import { requireUser, slugFrom, isAdmin } from "../../../../lib/api-helpers";
+import { requireUser, slugFrom, isAdmin, validatePackTextField } from "../../../../lib/api-helpers";
+import { createMegalodonClient, type PlatformKey } from "../../../../lib/social/providers";
+import { fetchFollowingHandles } from "../../../../lib/social/following";
+import { buildHandle, canonicalHandle } from "../../../../lib/social/handles";
 
 const SITE_URL = process.env.SITE_URL || "https://furryfediverse.org";
 
@@ -21,8 +24,12 @@ interface PackAccountRow {
         acct: string | null;
         avatarUrl: string | null;
         followersCount: number | null;
+        instanceDomain: string | null;
     } | null;
     handle: string | null;
+    displayName: string | null;
+    avatarUrl: string | null;
+    profileUrl: string | null;
 }
 
 interface PackDetail {
@@ -59,6 +66,7 @@ const packDetailInclude = {
                     acct: true,
                     avatarUrl: true,
                     followersCount: true,
+                    instanceDomain: true,
                 },
             },
         },
@@ -108,13 +116,31 @@ function buildActivityPubBody(pack: PackDetail, baseUrl: string): object {
         },
         totalItems: pack._count?.accounts || pack.accounts.length,
         items: pack.accounts
-            .map((spa) => spa.linkedProfile?.profileUrl)
+            .map((spa) => spa.linkedProfile?.profileUrl || spa.profileUrl)
             .filter((url): url is string => !!url),
     };
 }
 
+/**
+ * Canonical `username@domain` handle for a pack account row, used to match
+ * against the viewer's following set. Linked profiles store acct possibly
+ * without a domain; handle-based rows store the full handle.
+ */
+function accountFollowingHandle(spa: PackAccountRow): string | null {
+    if (spa.linkedProfile) {
+        const acct = spa.linkedProfile.acct;
+        if (!acct) return null;
+        return canonicalHandle(buildHandle(acct, spa.linkedProfile.instanceDomain));
+    }
+    return spa.handle ? canonicalHandle(spa.handle) : null;
+}
+
 /** Build the JSON representation of a pack for the share page. */
-function buildJsonBody(pack: PackDetail): object {
+function buildJsonBody(
+    pack: PackDetail,
+    opts: { followingKnown: boolean; followingSet: Set<string> } = { followingKnown: false, followingSet: new Set() },
+): object {
+    const { followingKnown, followingSet } = opts;
     return {
         url: `${SITE_URL}/api/packs/${pack.slug}`,
         title: pack.title,
@@ -129,7 +155,13 @@ function buildJsonBody(pack: PackDetail): object {
         updated_at: pack.updatedAt.toISOString(),
         published_at: pack.publishedAt?.toISOString() || null,
         numAccounts: pack._count?.accounts || 0,
+        followingKnown,
         accounts: pack.accounts.map((spa) => {
+            const following =
+                followingKnown && (() => {
+                    const handle = accountFollowingHandle(spa);
+                    return handle ? followingSet.has(handle) : false;
+                })();
             if (spa.linkedProfile) {
                 return {
                     name: spa.linkedProfile.displayName || spa.linkedProfile.acct || "",
@@ -139,16 +171,18 @@ function buildJsonBody(pack: PackDetail): object {
                     followers_count: spa.linkedProfile.followersCount || 0,
                     bot: false,
                     discoverable: true,
+                    following,
                 };
             }
             return {
-                name: spa.handle || "",
+                name: spa.displayName || spa.handle || "",
                 handle: spa.handle || "",
-                url: "",
-                avatar: "",
+                url: spa.profileUrl || "",
+                avatar: spa.avatarUrl || "",
                 followers_count: 0,
                 bot: false,
                 discoverable: false,
+                following,
             };
         }),
     };
@@ -202,7 +236,41 @@ export const GET: APIRoute = async ({ url, request, locals }) => {
             });
         }
 
-        return new Response(JSON.stringify(buildJsonBody(pack)), {
+        // For a logged-in viewer with a linked profile, annotate each
+        // account with whether they already follow it. Skipped when the
+        // caller passes ?following=0 (management pages don't need it) or
+        // the viewer has no linked profile / the fetch fails.
+        let followingKnown = false;
+        let followingSet = new Set<string>();
+        const wantFollowing = url.searchParams.get("following") !== "0";
+        if (wantFollowing && locals?.user) {
+            const viewerProfile = await prisma.linkedProfile.findFirst({
+                where: { userId: locals.user.id, isActive: true },
+                orderBy: { isPrimaryProfile: "desc" },
+                select: { platform: true, instanceDomain: true, accessToken: true },
+            });
+            if (viewerProfile) {
+                try {
+                    const client = createMegalodonClient(
+                        viewerProfile.platform as PlatformKey,
+                        viewerProfile.instanceDomain,
+                        viewerProfile.accessToken,
+                    );
+                    const creds = await client.verifyAccountCredentials();
+                    followingSet = await fetchFollowingHandles(
+                        client,
+                        creds.data.id,
+                        viewerProfile.instanceDomain,
+                        2, // cap: fast page loads; the follow batch uses the full list
+                    );
+                    followingKnown = true;
+                } catch (err) {
+                    console.error("Failed to fetch viewer following for pack:", err);
+                }
+            }
+        }
+
+        return new Response(JSON.stringify(buildJsonBody(pack, { followingKnown, followingSet })), {
             status: 200,
             headers: { "Content-Type": "application/json" },
         });
@@ -249,6 +317,36 @@ export const PUT: APIRoute = async ({ request, url, locals }) => {
         const body = await request.json();
         const { title, description } = body;
 
+        // Validate each provided field; trim and enforce the same length
+        // caps as creation.
+        const data: { title?: string; description?: string } = {};
+        if (title !== undefined) {
+            const res = validatePackTextField(title, "Title", 120);
+            if (!res.ok) {
+                return new Response(
+                    JSON.stringify({ error: res.error }),
+                    { status: 400, headers: { "Content-Type": "application/json" } }
+                );
+            }
+            data.title = res.value;
+        }
+        if (description !== undefined) {
+            const res = validatePackTextField(description, "Description", 2000);
+            if (!res.ok) {
+                return new Response(
+                    JSON.stringify({ error: res.error }),
+                    { status: 400, headers: { "Content-Type": "application/json" } }
+                );
+            }
+            data.description = res.value;
+        }
+        if (Object.keys(data).length === 0) {
+            return new Response(
+                JSON.stringify({ error: "Nothing to update" }),
+                { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+        }
+
         // Editing an approved pack must trigger re-review: reset the
         // status to pending and unpublish, so the change can't slip out
         // under the previously-approved content.
@@ -256,10 +354,9 @@ export const PUT: APIRoute = async ({ request, url, locals }) => {
         const updated = await prisma.starterPack.update({
             where: { id: existing.id },
             data: {
-                ...(title !== undefined ? { title } : {}),
-                ...(description !== undefined ? { description } : {}),
+                ...data,
                 ...(wasApproved
-                    ? { status: "pending", publishedAt: null, splashImageNeedsUpdate: true }
+                    ? { status: "pending", publishedAt: null }
                     : {}),
             },
             include: {

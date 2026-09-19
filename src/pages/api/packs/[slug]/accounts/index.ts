@@ -2,33 +2,13 @@ export const prerender = false;
 
 import type { APIRoute } from "astro";
 import { prisma } from "../../../../../lib/prisma";
-import generator from "megalodon";
 import { requireUser } from "../../../../../lib/api-helpers";
-
-/** Look up a @user@instance handle on the caller's home instance. */
-async function lookupRemoteAccount(q: string, userId: string): Promise<Record<string, unknown> | null> {
-    if (!q.match(/^@?([^@]+)@(.+)$/)) return null;
-
-    const fullAcct = q.startsWith("@") ? q : `@${q}`;
-    const userProfile = await prisma.linkedProfile.findFirst({
-        where: { userId, isActive: true },
-        select: { instanceDomain: true, platform: true, accessToken: true },
-    });
-    if (!userProfile) return null;
-
-    try {
-        const client = generator(
-            userProfile.platform as "mastodon" | "pleroma" | "pixelfed" | "firefish" | "gotosocial",
-            `https://${userProfile.instanceDomain}`,
-            userProfile.accessToken
-        );
-        const result = await client.lookupAccount(fullAcct);
-        return result.data as Record<string, unknown>;
-    } catch {
-        // Remote lookup failed, continue with local search only
-        return null;
-    }
-}
+import {
+    lookupRemoteAccount,
+    searchRemoteAccounts,
+    type RemoteAccount,
+} from "../../../../../lib/social/remote-accounts";
+import { normalizeHandle, isValidHandle, MAX_HANDLE_LENGTH } from "../../../../../lib/social/handles";
 
 export const GET: APIRoute = async ({ url, locals }) => {
     const { user, error: authError } = requireUser(locals);
@@ -66,8 +46,6 @@ export const GET: APIRoute = async ({ url, locals }) => {
         const limit = 50;
         const skip = (page - 1) * limit;
 
-        const remoteAccount = await lookupRemoteAccount(q, user.id);
-
         // Search LinkedProfiles
         const where: Record<string, unknown> = {};
         if (q) {
@@ -89,10 +67,24 @@ export const GET: APIRoute = async ({ url, locals }) => {
             // Always fetch handle-based accounts in this pack
             prisma.starterPackAccount.findMany({
                 where: { starterPackId: pack.id, linkedProfileId: null, handle: { not: null } },
-                select: { id: true, handle: true },
+                select: { id: true, handle: true, displayName: true, avatarUrl: true },
                 orderBy: { createdAt: "asc" },
             }),
         ]);
+
+        // Remote results for the query: an exact @user@instance lookup when
+        // the query is a full handle, plus a partial-match search of the
+        // caller's home instance otherwise. Returned separately so the UI
+        // can offer to add them as handle-based accounts.
+        const remoteAccounts: RemoteAccount[] = [];
+        const exactRemote = await lookupRemoteAccount(q, user.id);
+        if (exactRemote) remoteAccounts.push(exactRemote);
+        else remoteAccounts.push(...(await searchRemoteAccounts(q, user.id)));
+
+        const handleSet = new Set(handleAccounts.map((h) => h.handle));
+        for (const ra of remoteAccounts) {
+            ra.inStarterPack = handleSet.has(ra.handle);
+        }
 
         // Annotate profiles with inStarterPack
         const existingAccountIds = await prisma.starterPackAccount.findMany({
@@ -103,11 +95,16 @@ export const GET: APIRoute = async ({ url, locals }) => {
 
         const results = profiles.map((p) => ({
             id: p.id,
+            // The UI toggles on linkedProfileId + avatar; keep the raw
+            // fields too for any other consumers.
+            linkedProfileId: p.id,
             platform: p.platform,
             instanceDomain: p.instanceDomain,
             username: p.username,
             acct: p.acct,
+            handle: p.acct.includes("@") ? p.acct : `${p.acct}@${p.instanceDomain}`,
             displayName: p.displayName,
+            avatar: p.avatarUrl,
             avatarUrl: p.avatarUrl,
             profileUrl: p.profileUrl,
             followersCount: p.followersCount,
@@ -119,7 +116,7 @@ export const GET: APIRoute = async ({ url, locals }) => {
             JSON.stringify({
                 accounts: results,
                 handleAccounts,
-                remoteAccount,
+                remoteAccounts,
                 totalCount,
                 page,
                 limit,
@@ -178,7 +175,7 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
         }
 
         const body = await request.json();
-        const { linkedProfileId, handle } = body;
+        const { linkedProfileId, handle, displayName, avatarUrl, profileUrl } = body;
 
         if (!linkedProfileId && !handle) {
             return new Response(
@@ -187,21 +184,72 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
             );
         }
 
+        // Normalize and validate a handle-based account. Accepts
+        // "@user@domain" or "user@domain"; stored without the leading @.
+        let normalizedHandle: string | null = null;
+        if (handle !== undefined && handle !== null) {
+            if (typeof handle !== "string") {
+                return new Response(
+                    JSON.stringify({ error: "Handle must be a string" }),
+                    { status: 400, headers: { "Content-Type": "application/json" } }
+                );
+            }
+            normalizedHandle = normalizeHandle(handle);
+            if (!isValidHandle(normalizedHandle)) {
+                return new Response(
+                    JSON.stringify({ error: "Handle must be in the form user@domain" }),
+                    { status: 400, headers: { "Content-Type": "application/json" } }
+                );
+            }
+            if (normalizedHandle.length > MAX_HANDLE_LENGTH) {
+                return new Response(
+                    JSON.stringify({ error: "Handle is too long" }),
+                    { status: 400, headers: { "Content-Type": "application/json" } }
+                );
+            }
+        }
+
         let inStarterPack: boolean;
 
-        if (handle) {
-            // Remove handle-based account from pack
+        if (normalizedHandle) {
+            // Toggle a handle-based account: create it when it's not in
+            // the pack yet, remove it when it is. This is what lets users
+            // add accounts that have no LinkedProfile on this site (e.g.
+            // remote accounts found via @user@domain lookup).
             const existing = await prisma.starterPackAccount.findFirst({
-                where: { starterPackId: pack.id, handle },
+                where: { starterPackId: pack.id, handle: normalizedHandle },
             });
             if (existing) {
                 await prisma.starterPackAccount.delete({ where: { id: existing.id } });
                 inStarterPack = false;
             } else {
-                return new Response(
-                    JSON.stringify({ error: "Handle not found in pack" }),
-                    { status: 404, headers: { "Content-Type": "application/json" } }
-                );
+                // Check max accounts limit
+                const accountCount = await prisma.starterPackAccount.count({
+                    where: { starterPackId: pack.id },
+                });
+
+                if (accountCount >= 150) {
+                    return new Response(
+                        JSON.stringify({ error: "Maximum of 150 accounts per pack" }),
+                        { status: 400, headers: { "Content-Type": "application/json" } }
+                    );
+                }
+
+                await prisma.starterPackAccount.create({
+                    data: {
+                        starterPackId: pack.id,
+                        handle: normalizedHandle,
+                        createdById: user.id,
+                        // Optional display metadata captured from the remote
+                        // search/lookup result at add time, so the published
+                        // pack page can render name/avatar instead of a bare
+                        // handle. Display-only; the handle is the resolution key.
+                        displayName: typeof displayName === "string" ? displayName.trim().slice(0, 200) || null : null,
+                        avatarUrl: typeof avatarUrl === "string" ? avatarUrl.trim().slice(0, 500) || null : null,
+                        profileUrl: typeof profileUrl === "string" ? profileUrl.trim().slice(0, 500) || null : null,
+                    },
+                });
+                inStarterPack = true;
             }
         } else {
             // Check if account is already in the pack
@@ -265,24 +313,22 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
             }
         }
 
-        // Update numAccounts on the pack. Changing the account list of an
-        // approved pack must trigger re-review, same as editing metadata.
-        const newCount = await prisma.starterPackAccount.count({
-            where: { starterPackId: pack.id },
-        });
-
-        await prisma.starterPack.update({
+        // Update numAccounts atomically (+/- 1) instead of count-then-write,
+        // so concurrent toggles can't clobber the counter with a stale value.
+        // Changing the account list of an approved pack must trigger
+        // re-review, same as editing metadata.
+        const updatedPack = await prisma.starterPack.update({
             where: { id: pack.id },
             data: {
-                numAccounts: newCount,
+                numAccounts: { increment: inStarterPack ? 1 : -1 },
                 ...(pack.status === "approved" && pack.publishedAt
-                    ? { status: "pending", publishedAt: null, splashImageNeedsUpdate: true }
+                    ? { status: "pending", publishedAt: null }
                     : {}),
             },
         });
 
         return new Response(
-            JSON.stringify({ inStarterPack, numAccounts: newCount }),
+            JSON.stringify({ inStarterPack, numAccounts: updatedPack.numAccounts }),
             { status: 200, headers: { "Content-Type": "application/json" } }
         );
     } catch (error) {

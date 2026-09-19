@@ -2,6 +2,7 @@
 export const prerender = false;
 import Layout from "../../../layouts/Layout.astro";
 import { prisma } from "../../../lib/prisma";
+import { isAdmin } from "../../../lib/api-helpers";
 
 const user = Astro.locals.user;
 
@@ -9,9 +10,7 @@ if (!user) {
 	return Astro.redirect("/auth/login");
 }
 
-const roles = (user.role || "user").split(",");
-const isAdmin = roles.includes("admin");
-if (!isAdmin) {
+if (!isAdmin(user)) {
 	return Astro.redirect("/auth/dashboard");
 }
 

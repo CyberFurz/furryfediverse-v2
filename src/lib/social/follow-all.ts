@@ -2,6 +2,7 @@ import { createMegalodonClient, type PlatformKey } from "./providers";
 
 export interface FollowBatchResult {
   followed: string[]; // handles of accounts followed this run
+  requested: string[]; // handles where the follow is pending approval (locked account)
   skippedAlreadyFollowing: number;
   skippedSelf: number;
   errors: Array<{ acct: string; error: string }>;
@@ -100,7 +101,7 @@ async function resolveAndFollowAccount(
     username: string;
   },
   userDomain: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; requested?: boolean } | { ok: false; error: string }> {
   // Construct the fediverse handle for lookups
   const acct = `@${target.username}@${target.instanceDomain}`;
 
@@ -166,7 +167,13 @@ async function resolveAndFollowAccount(
   // target instances.
 
   try {
-    await client.followAccount(resolvedId, { reblog: false });
+    const followRes = await client.followAccount(resolvedId, { reblog: false });
+    // A locked target instance/account accepts the follow as a *request*
+    // (relationship: following=false, requested=true). Report that honestly
+    // instead of claiming the follow went through.
+    if (followRes.data?.requested) {
+      return { ok: true, requested: true };
+    }
     return { ok: true };
   } catch (followErr) {
     return { ok: false, error: getErrorReason(followErr) };
@@ -221,6 +228,7 @@ export async function followNextBatch(
   );
 
   const followed: string[] = [];
+  const requested: string[] = [];
   const errors: Array<{ acct: string; error: string }> = [];
   let skippedAlreadyFollowing = 0;
   let skippedSelf = 0;
@@ -260,7 +268,11 @@ export async function followNextBatch(
     );
 
     if (result.ok) {
-      followed.push(target.acct);
+      if (result.requested) {
+        requested.push(target.acct);
+      } else {
+        followed.push(target.acct);
+      }
       consecutiveRateLimits = 0;
     } else {
       errors.push({ acct: target.acct, error: result.error });
@@ -279,6 +291,7 @@ export async function followNextBatch(
 
   return {
     followed,
+    requested,
     skippedAlreadyFollowing,
     skippedSelf,
     errors,

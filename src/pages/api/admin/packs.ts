@@ -1,13 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { isAdmin } from "@/lib/api-helpers";
 import type { APIRoute } from "astro";
 
 export const prerender = false;
-
-function isAdmin(user: any): boolean {
-  const roles = (user.role || "user").split(",");
-  return roles.includes("admin");
-}
 
 /** Record an admin action against a pack for the audit trail. */
 async function writeAuditLog(packId: string, actorId: string, action: string, reason?: string) {

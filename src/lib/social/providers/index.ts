@@ -6,7 +6,7 @@ export interface ProviderConfig {
   key: PlatformKey;
   label: string;
   readScope: string;
-  megadonType: "mastodon" | "pleroma" | "pixelfed" | "firefish" | "gotosocial";
+  megalodonType: PlatformKey;
 }
 
 export interface NormalizedProfile {
@@ -27,36 +27,40 @@ export const PROVIDERS: Record<PlatformKey, ProviderConfig> = {
     key: "mastodon",
     label: "Mastodon",
     readScope: "profile",
-    megadonType: "mastodon",
+    megalodonType: "mastodon",
   },
   pleroma: {
     key: "pleroma",
     label: "Pleroma / Akkoma",
     readScope: "read:accounts",
-    megadonType: "pleroma",
+    megalodonType: "pleroma",
   },
   pixelfed: {
     key: "pixelfed",
     label: "Pixelfed",
     readScope: "read",
-    megadonType: "pixelfed",
+    megalodonType: "pixelfed",
   },
   firefish: {
     key: "firefish",
     label: "Firefish / Iceshrimp",
     readScope: "read:account",
-    megadonType: "firefish",
+    megalodonType: "firefish",
   },
   gotosocial: {
     key: "gotosocial",
     label: "GoToSocial",
-    readScope: "profile",
-    megadonType: "gotosocial",
+    // "profile" alone is too narrow: account lookup (@user@domain in pack
+    // search) and the follow batch need read:accounts / read:search /
+    // write:follows. Megalodon joins the scope list with spaces when
+    // registering the app and building the authorize URL.
+    readScope: "profile read:accounts read:search write:follows",
+    megalodonType: "gotosocial",
   },
 };
 
 export function getMegalodonType(platform: PlatformKey) {
-  return PROVIDERS[platform].megadonType;
+  return PROVIDERS[platform].megalodonType;
 }
 
 export async function detectPlatform(domain: string): Promise<PlatformKey | null> {

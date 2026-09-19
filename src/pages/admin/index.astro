@@ -1,6 +1,7 @@
 ---
 export const prerender = false;
 import Layout from "../../layouts/Layout.astro";
+import { prisma } from "../../lib/prisma";
 
 const user = Astro.locals.user;
 
@@ -38,6 +39,12 @@ async function getStats() {
 }
 
 const stats = await getStats();
+
+// Starter packs: the review queue (pending) is the actionable count.
+const [pendingPacks, totalPacks] = await Promise.all([
+	prisma.starterPack.count({ where: { status: "pending", deletedAt: null } }),
+	prisma.starterPack.count(),
+]);
 ---
 
 <Layout title="Admin Dashboard - Furry Fediverse">
@@ -91,7 +98,8 @@ const stats = await getStats();
 						</div>
 						<div>
 							<p class="text-white/60 text-sm">Starter Packs</p>
-							<p class="text-white font-semibold">Review & manage</p>
+							<p class="text-white font-semibold text-2xl">{pendingPacks}</p>
+							<p class="text-white/50 text-xs">pending review · {totalPacks} total</p>
 						</div>
 					</div>
 				</a>
