@@ -120,7 +120,7 @@ export const GET: APIRoute = async ({ url, cookies, redirect, request }) => {
   try {
     const baseUrl = `https://${instanceDomain}`;
 
-    const client = generator(provider.megadonType, baseUrl);
+    const client = generator(provider.megalodonType, baseUrl);
     const tokenData = await client.fetchAccessToken(
       clientId,
       clientSecret,

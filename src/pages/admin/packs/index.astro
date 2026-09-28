@@ -1,0 +1,387 @@
+---
+export const prerender = false;
+import Layout from "../../../layouts/Layout.astro";
+import { prisma } from "../../../lib/prisma";
+import { isAdmin } from "../../../lib/api-helpers";
+
+const user = Astro.locals.user;
+
+if (!user) {
+	return Astro.redirect("/auth/login");
+}
+
+if (!isAdmin(user)) {
+	return Astro.redirect("/auth/dashboard");
+}
+
+const searchParam = new URL(Astro.request.url).searchParams.get("search") || "";
+const filterParam = new URL(Astro.request.url).searchParams.get("filter") || "";
+const pageParam = parseInt(new URL(Astro.request.url).searchParams.get("page") || "1");
+const limit = 20;
+
+const where: any = {};
+
+// Status filter maps to the pack status column; "deleted" is the
+// soft-delete state, so it filters on deletedAt instead.
+if (filterParam === "deleted") {
+	where.deletedAt = { not: null };
+} else if (filterParam) {
+	where.status = filterParam;
+	where.deletedAt = null;
+}
+
+if (searchParam) {
+	where.OR = [
+		{ title: { contains: searchParam, mode: "insensitive" } },
+		{ slug: { contains: searchParam, mode: "insensitive" } },
+		{ createdBy: { name: { contains: searchParam, mode: "insensitive" } } },
+	];
+}
+
+const [packs, total] = await Promise.all([
+	prisma.starterPack.findMany({
+		where,
+		orderBy: { createdAt: "desc" },
+		take: limit,
+		skip: (pageParam - 1) * limit,
+		include: {
+			createdBy: { select: { id: true, name: true } },
+			_count: { select: { accounts: true } },
+		},
+	}),
+	prisma.starterPack.count({ where }),
+]);
+
+const totalPacks = await prisma.starterPack.count();
+const approvedPacks = await prisma.starterPack.count({
+	where: { status: "approved", publishedAt: { not: null }, deletedAt: null },
+});
+const pendingPacks = await prisma.starterPack.count({
+	where: { status: "pending", deletedAt: null },
+});
+const deletedPacks = await prisma.starterPack.count({
+	where: { deletedAt: { not: null } },
+});
+const totalAccounts = await prisma.starterPackAccount.count();
+
+const totalPages = Math.ceil(total / limit);
+const currentPage = pageParam;
+
+function getStatus(pack: { status: string; deletedAt: Date | null }): string {
+	if (pack.deletedAt) return "deleted";
+	return pack.status || "draft";
+}
+---
+
+<Layout title="Starter Packs - Admin - Furry Fediverse">
+	<main class="p-2 md:p-5 lg:px-60 2xl:px-80">
+		<div class="py-8">
+			<div class="flex items-center justify-between mb-8">
+				<div>
+					<h1 class="text-3xl font-bold text-white">
+						Starter <span class="text-[#31dcb2]">Packs</span>
+					</h1>
+					<a href="/admin" class="text-white/60 text-sm hover:text-[#31dcb2] transition-colors no-underline">
+						&larr; Back to Admin Dashboard
+					</a>
+				</div>
+				<span class="text-white/60 text-sm">{total} total packs</span>
+			</div>
+
+			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+				<div class="bg-[#0D3559] rounded-xl p-6 border border-white/10">
+					<div class="flex items-center gap-4">
+						<div class="w-12 h-12 bg-[#31dcb2] rounded-full flex items-center justify-center text-[#12384b]">
+							<i class="fa-solid fa-up-right-and-down-left-from-center w-6 h-6"></i>
+						</div>
+						<div>
+							<p class="text-white/60 text-sm">Total Packs</p>
+							<p class="text-white font-semibold text-2xl">{totalPacks}</p>
+						</div>
+					</div>
+				</div>
+
+				<div class="bg-[#0D3559] rounded-xl p-6 border border-white/10">
+					<div class="flex items-center gap-4">
+						<div class="w-12 h-12 bg-green-500/30 rounded-full flex items-center justify-center text-green-300">
+							<i class="fa-solid fa-circle-check w-6 h-6"></i>
+						</div>
+						<div>
+							<p class="text-white/60 text-sm">Approved</p>
+							<p class="text-white font-semibold text-2xl">{approvedPacks}</p>
+						</div>
+					</div>
+				</div>
+
+				<div class="bg-[#0D3559] rounded-xl p-6 border border-white/10">
+					<div class="flex items-center gap-4">
+						<div class="w-12 h-12 bg-amber-500/30 rounded-full flex items-center justify-center text-amber-300">
+							<i class="fa-solid fa-circle-exclamation w-6 h-6"></i>
+						</div>
+						<div>
+							<p class="text-white/60 text-sm">Pending Review</p>
+							<p class="text-white font-semibold text-2xl">{pendingPacks}</p>
+						</div>
+					</div>
+				</div>
+
+				<div class="bg-[#0D3559] rounded-xl p-6 border border-white/10">
+					<div class="flex items-center gap-4">
+						<div class="w-12 h-12 bg-red-500/30 rounded-full flex items-center justify-center text-red-300">
+							<i class="fa-solid fa-trash w-6 h-6"></i>
+						</div>
+						<div>
+							<p class="text-white/60 text-sm">Deleted</p>
+							<p class="text-white font-semibold text-2xl">{deletedPacks}</p>
+						</div>
+					</div>
+				</div>
+
+				<div class="bg-[#0D3559] rounded-xl p-6 border border-white/10">
+					<div class="flex items-center gap-4">
+						<div class="w-12 h-12 bg-blue-500/30 rounded-full flex items-center justify-center text-blue-300">
+							<i class="fa-solid fa-users w-6 h-6"></i>
+						</div>
+						<div>
+							<p class="text-white/60 text-sm">Total Accounts</p>
+							<p class="text-white font-semibold text-2xl">{totalAccounts.toLocaleString()}</p>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="bg-[#0D3559] rounded-xl p-6 border border-white/10 mb-6">
+				<div class="flex gap-3">
+					<form method="GET" class="flex-1 flex gap-3">
+						<input type="hidden" name="filter" value={filterParam} />
+						<input type="text" name="search" value={searchParam} placeholder="Search by title, slug, or creator..." class="flex-1 px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2]" />
+						<button type="submit" class="bg-[#31dcb2] text-[#12384b] font-semibold px-6 py-3 rounded-lg hover:bg-[#28c4a0] transition-colors">Search</button>
+					</form>
+					<div class="flex gap-2 flex-wrap">
+						<a href="/admin/packs" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === '' ? 'bg-[#31dcb2] text-[#12384b] border-[#31dcb2]' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">All</a>
+						<a href="/admin/packs?filter=draft" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === 'draft' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">Draft</a>
+						<a href="/admin/packs?filter=pending" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === 'pending' ? 'bg-amber-500/20 text-amber-300 border-amber-500/50' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">Pending</a>
+						<a href="/admin/packs?filter=approved" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === 'approved' ? 'bg-green-500/20 text-green-300 border-green-500/50' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">Approved</a>
+						<a href="/admin/packs?filter=rejected" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === 'rejected' ? 'bg-red-500/20 text-red-300 border-red-500/50' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">Rejected</a>
+						<a href="/admin/packs?filter=deleted" class="px-3 py-2 rounded-lg border text-sm no-underline {filterParam === 'deleted' ? 'bg-red-500/20 text-red-300 border-red-500/50' : 'bg-white/5 border-white/20 text-white hover:bg-white/10'}">Deleted</a>
+					</div>
+				</div>
+			</div>
+
+			<div class="bg-[#0D3559] rounded-xl border border-white/10 overflow-hidden">
+				<table class="w-full">
+					<thead class="bg-white/5 border-b border-white/10">
+						<tr>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Title</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Slug</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Creator</th>
+							<th class="text-center px-6 py-4 text-white/60 font-medium text-sm">Accounts</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Status</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Created</th>
+							<th class="text-right px-6 py-4 text-white/60 font-medium text-sm">Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						{packs.map((pack) => {
+							const status = getStatus(pack);
+							return (
+								<tr class="border-b border-white/5 hover:bg-white/5 transition-colors {status === 'deleted' ? 'opacity-60' : ''}">
+									<td class="px-6 py-4">
+										<p class="text-white font-medium truncate max-w-[200px]" title={pack.title}>
+											{pack.title}
+										</p>
+									</td>
+									<td class="px-6 py-4">
+										<code class="text-white/60 text-xs font-mono">{pack.slug}</code>
+									</td>
+									<td class="px-6 py-4 text-white/80">
+										{pack.createdBy.name}
+									</td>
+									<td class="px-6 py-4 text-center text-white/80">
+										{pack._count.accounts}
+									</td>
+									<td class="px-6 py-4">
+										{status === "approved" && (
+											<span class="px-2 py-1 bg-green-500/20 text-green-300 rounded text-xs font-medium">Approved</span>
+										)}
+										{status === "pending" && (
+											<span class="px-2 py-1 bg-amber-500/20 text-amber-300 rounded text-xs font-medium">Pending</span>
+										)}
+										{status === "draft" && (
+											<span class="px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded text-xs font-medium">Draft</span>
+										)}
+										{status === "rejected" && (
+											<span class="px-2 py-1 bg-red-500/20 text-red-300 rounded text-xs font-medium">Rejected</span>
+										)}
+										{status === "deleted" && (
+											<span class="px-2 py-1 bg-gray-500/20 text-gray-300 rounded text-xs font-medium">Deleted</span>
+										)}
+									</td>
+									<td class="px-6 py-4 text-white/60 text-sm whitespace-nowrap">
+										{new Date(pack.createdAt).toLocaleDateString()}
+									</td>
+									<td class="px-6 py-4">
+										<div class="flex items-center justify-end gap-2">
+											<a
+												href={`/packs/${pack.slug}`}
+												class="p-2 rounded hover:bg-white/10 transition-colors"
+												title="View pack"
+												target="_blank"
+											>
+												<i class="fa-solid fa-eye w-4 h-4 text-blue-400"></i>
+											</a>
+											{status === "pending" && (
+												<>
+													<button
+														class="p-2 rounded hover:bg-white/10 transition-colors"
+														data-pack-id={pack.id}
+														data-action="approve"
+														title="Approve pack"
+													>
+														<i class="fa-solid fa-circle-check w-4 h-4 text-green-400"></i>
+													</button>
+													<button
+														class="p-2 rounded hover:bg-white/10 transition-colors"
+														data-pack-id={pack.id}
+														data-action="reject"
+														title="Reject pack"
+													>
+														<i class="fa-solid fa-xmark w-4 h-4 text-red-400"></i>
+													</button>
+												</>
+											)}
+											{status !== "deleted" && status !== "rejected" && (
+												<>
+													<a
+														href={`/packs/${pack.slug}/edit`}
+														class="p-2 rounded hover:bg-white/10 transition-colors"
+														title="Edit pack"
+													>
+														<i class="fa-solid fa-pen w-4 h-4 text-blue-400"></i>
+													</a>
+												</>
+											)}
+											{status === "deleted" ? (
+												<button
+													class="p-2 rounded hover:bg-white/10 transition-colors"
+													data-pack-id={pack.id}
+													data-action="restore"
+													title="Restore pack"
+												>
+													<i class="fa-solid fa-rotate-right w-4 h-4 text-green-400"></i>
+												</button>
+											) : (
+												<button
+													class="p-2 rounded hover:bg-white/10 transition-colors"
+													data-pack-id={pack.id}
+													data-action="delete"
+													title="Delete pack"
+												>
+													<i class="fa-solid fa-trash w-4 h-4 text-red-400"></i>
+												</button>
+											)}
+										</div>
+									</td>
+								</tr>
+							);
+						})}
+					</tbody>
+				</table>
+				{packs.length === 0 && (
+					<div class="p-8 text-center text-white/60">No packs found</div>
+				)}
+			</div>
+
+			{totalPages > 1 && (
+				<div class="flex items-center justify-between mt-6">
+					<p class="text-white/60 text-sm">
+						Showing {(currentPage - 1) * limit + 1} to {Math.min(currentPage * limit, total)} of {total}
+					</p>
+					<div class="flex gap-2">
+						{currentPage > 1 && (
+							<a href={`/admin/packs?${searchParam ? `search=${searchParam}&` : ""}${filterParam ? `filter=${filterParam}&` : ""}page=${currentPage - 1}`} class="px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors no-underline">Previous</a>
+						)}
+						{currentPage < totalPages && (
+							<a href={`/admin/packs?${searchParam ? `search=${searchParam}&` : ""}${filterParam ? `filter=${filterParam}&` : ""}page=${currentPage + 1}`} class="px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors no-underline">Next</a>
+						)}
+					</div>
+				</div>
+			)}
+		</div>
+	</main>
+</Layout>
+
+<div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+<script>
+	const toastContainer = document.getElementById("toast-container");
+
+	function showToast(message: string, type: "success" | "error" = "success") {
+		const toast = document.createElement("div");
+		toast.className = `px-4 py-3 rounded-lg shadow-lg text-white text-sm ${type === "success" ? "bg-green-600" : "bg-red-600"}`;
+		toast.textContent = message;
+		toastContainer?.appendChild(toast);
+		setTimeout(() => toast.remove(), 3000);
+	}
+
+	async function callPackAction(action: string, packId: string, reason?: string) {
+		const res = await fetch("/api/admin/packs", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				action,
+				packId,
+				...(action === "delete" ? { confirm: true } : {}),
+				...(reason ? { reason } : {}),
+			}),
+		});
+		const data = await res.json();
+		if (!res.ok) {
+			throw new Error(data.error || "Action failed");
+		}
+		return data;
+	}
+
+	document.querySelectorAll("[data-action]").forEach((btn) => {
+		btn.addEventListener("click", async (e) => {
+			const target = e.currentTarget as HTMLElement;
+			const packId = target.dataset.packId;
+			const action = target.dataset.action;
+
+			if (!packId || !action) return;
+
+			const confirmMessages: Record<string, string> = {
+				delete: "Delete this pack? It will be soft-deleted.",
+				restore: "Restore this pack?",
+				approve: "Approve this pack? It will be published publicly.",
+				reject: "Reject this pack? The creator will be able to resubmit.",
+			};
+			const confirmMsg = confirmMessages[action] || "Are you sure?";
+			if (!confirm(confirmMsg)) return;
+
+			target.classList.add("opacity-50", "pointer-events-none");
+
+			try {
+				// Ask for a rejection reason so the creator can fix it.
+				let reason: string | undefined;
+				if (action === "reject") {
+					reason = window.prompt("Reason for rejection (shown to the creator)") || undefined;
+				}
+
+				await callPackAction(action, packId, reason);
+				const actionLabels: Record<string, string> = {
+					delete: "Pack deleted",
+					restore: "Pack restored",
+					approve: "Pack approved",
+					reject: "Pack rejected",
+				};
+				showToast(actionLabels[action] || "Action done");
+				setTimeout(() => window.location.reload(), 500);
+			} catch (err: unknown) {
+				const msg = err instanceof Error ? err.message : "Action failed";
+				showToast(msg, "error");
+				target.classList.remove("opacity-50", "pointer-events-none");
+			}
+		});
+	});
+</script>

@@ -120,7 +120,7 @@ function DirectoryGrid() {
                   <h3 className="text-white font-bold">{p.displayName || p.username}</h3>
                   {p.isPrimaryNsfw ? <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-200 border border-amber-400/40">NSFW</span> : null}
                 </div>
-                <p className="text-[#31dcb2] text-sm mb-2">@{p.acct}@{p.instanceDomain}</p>
+                <p className="text-[#31dcb2] text-sm mb-2">@{p.acct}</p>
                 <div className="text-white/70 text-sm max-h-36 overflow-y-auto pr-1 [&_p]:mb-2 [&_a]:text-[#31dcb2] [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-white/20 [&_blockquote]:pl-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5">
                   {p.bio ? (
                     <div dangerouslySetInnerHTML={{ __html: sanitizeProfileHtml(p.bio) }} />

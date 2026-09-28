@@ -1,6 +1,7 @@
 ---
 export const prerender = false;
 import Layout from "../../layouts/Layout.astro";
+import { prisma } from "../../lib/prisma";
 
 const user = Astro.locals.user;
 
@@ -38,6 +39,12 @@ async function getStats() {
 }
 
 const stats = await getStats();
+
+// Starter packs: the review queue (pending) is the actionable count.
+const [pendingPacks, totalPacks] = await Promise.all([
+	prisma.starterPack.count({ where: { status: "pending", deletedAt: null } }),
+	prisma.starterPack.count(),
+]);
 ---
 
 <Layout title="Admin Dashboard - Furry Fediverse">
@@ -80,6 +87,19 @@ const stats = await getStats();
 						<div>
 							<p class="text-white/60 text-sm">Article Reviews</p>
 							<p class="text-white font-semibold">Manage drafts</p>
+						</div>
+					</div>
+				</a>
+
+				<a href="/admin/packs" class="bg-[#0D3559] rounded-xl p-6 border border-white/10 hover:border-[#31dcb2]/50 transition-colors no-underline block">
+					<div class="flex items-center gap-4">
+						<div class="w-12 h-12 bg-[#31dcb2] rounded-full flex items-center justify-center text-[#12384b]">
+							<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+						</div>
+						<div>
+							<p class="text-white/60 text-sm">Starter Packs</p>
+							<p class="text-white font-semibold text-2xl">{pendingPacks}</p>
+							<p class="text-white/50 text-xs">pending review · {totalPacks} total</p>
 						</div>
 					</div>
 				</a>

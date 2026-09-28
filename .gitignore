@@ -29,5 +29,12 @@ pnpm-debug.log*
 # local storage
 storage/
 
+# runtime-generated images (splash/OG/cache)
+public/splash/
+public/og/
+public/cache/
+
 /generated/prisma
 .kilo/
+# Exploratory work (test blueprints, scratch)
+.tmp/

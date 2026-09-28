@@ -29,7 +29,11 @@ model User {
   instances     Instance[]
   articles      Article[]
   articleDrafts ArticleDraft[]
-  linkedProfiles LinkedProfile[]
+  linkedProfiles     LinkedProfile[]
+  starterPacks       StarterPack[]
+  starterPackAccounts StarterPackAccount[]
+  followAllClicks    FollowAllClick[]
+  packAuditLogs      PackAuditLog[]
 
   @@unique([email])
   @@map("user")
@@ -64,6 +68,7 @@ model LinkedProfile {
   isPrimaryNsfw     Boolean               @default(false)
   isPrimaryProfile  Boolean               @default(false)
   hashtags          LinkedProfileHashtag[]
+  starterPackAccounts StarterPackAccount[]
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
@@ -226,4 +231,75 @@ model ArticleDraft {
   @@index([articleId])
   @@index([status])
   @@map("article_draft")
+}
+
+model StarterPack {
+  id                    String   @id @default(cuid())
+  title                 String
+  slug                  String
+  description           String
+  createdById           String
+  createdBy             User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  deletedAt             DateTime?
+  status                String   @default("draft")
+  submittedAt           DateTime?
+  publishedAt           DateTime?
+  numAccounts           Int      @default(0)
+
+  accounts    StarterPackAccount[]
+  followClicks FollowAllClick[]
+  auditLogs    PackAuditLog[]
+
+  @@unique([createdById, slug])
+  @@index([status])
+  @@index([publishedAt])
+  @@index([deletedAt])
+  @@map("starter_pack")
+}
+
+model StarterPackAccount {
+  id              String         @id @default(cuid())
+  starterPackId   String
+  starterPack     StarterPack    @relation(fields: [starterPackId], references: [id], onDelete: Cascade)
+  linkedProfileId String?
+  linkedProfile   LinkedProfile? @relation(fields: [linkedProfileId], references: [id])
+  handle          String?
+  displayName     String?
+  avatarUrl       String?
+  profileUrl      String?
+  createdAt       DateTime       @default(now())
+  createdById     String
+  createdBy       User           @relation(fields: [createdById], references: [id])
+
+  @@unique([starterPackId, linkedProfileId])
+  @@index([starterPackId])
+  @@map("starter_pack_account")
+}
+
+model FollowAllClick {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  starterPackId String
+  starterPack   StarterPack @relation(fields: [starterPackId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+
+  @@index([starterPackId, createdAt])
+  @@map("follow_all_click")
+}
+
+model PackAuditLog {
+  id            String      @id @default(cuid())
+  packId        String
+  pack          StarterPack @relation(fields: [packId], references: [id], onDelete: Cascade)
+  actorId       String
+  actor         User        @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  action        String      // "approve" | "reject" | "delete" | "restore"
+  reason        String?
+  createdAt     DateTime    @default(now())
+
+  @@index([packId, createdAt])
+  @@map("pack_audit_log")
 }
