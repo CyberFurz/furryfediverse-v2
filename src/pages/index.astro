@@ -6,6 +6,22 @@ import Layout from "../layouts/Layout.astro";
 <Layout title="Furry Fediverse">
 	<!-- Hero Section -->
 	<main class="p-2 md:p-5 lg:px-60 2xl:px-80">
+		<!-- New Feature Banner -->
+		<a
+			href="/packs"
+			class="group flex flex-wrap items-center justify-center gap-x-3 gap-y-2 mt-4 px-4 py-3 rounded-xl border border-[#31dcb2]/40 bg-[#31dcb2]/10 hover:bg-[#31dcb2]/20 transition-colors no-underline text-center"
+		>
+			<span class="text-xs font-bold uppercase tracking-wide bg-[#31dcb2] text-[#12384b] px-2 py-1 rounded">
+				New
+			</span>
+			<span class="text-white/90">
+				Timeline feels empty? Fill it fast with <strong class="text-[#31dcb2]">Starter Packs</strong>.
+			</span>
+			<span class="text-[#31dcb2] font-semibold group-hover:translate-x-1 transition-transform">
+				Browse packs &rarr;
+			</span>
+		</a>
+
 		<div class="text-center py-10">
 			<div class="flex justify-center mb-4">
 				<img
@@ -33,25 +49,6 @@ import Layout from "../layouts/Layout.astro";
 					Join the Fediverse
 				</a>
 			</div>
-		</div>
-
-		<!-- Packs Section -->
-		<div class="text-center py-10">
-			<h2 class="text-3xl font-bold text-white mb-4">
-				Timeline feels empty?
-			</h2>
-			<p class="text-lg text-white/70 max-w-xl mx-auto mb-8">
-				Default Mastodon doesn't suggest accounts to follow, but
-				<a href="https://blog.joinmastodon.org/2025/10/our-ideas-about-packs/" target="_blank" class="text-[#31dcb2] font-semibold hover:underline">starter packs</a> fix
-				that. Curated collections of furries, artists, and communities
-				to fill your timeline.
-			</p>
-			<a
-				href="/packs"
-				class="inline-block bg-[#31dcb2] text-[#12384b] font-semibold px-8 py-3 rounded-lg hover:bg-[#28c4a0] transition-colors no-underline"
-			>
-				Browse Packs
-			</a>
 		</div>
 
 		<!-- Features Section -->
