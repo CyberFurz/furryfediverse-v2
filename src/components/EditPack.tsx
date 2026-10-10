@@ -1,11 +1,135 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faSpinner } from "@fortawesome/free-solid-svg-icons";
+import { faSpinner, faImage, faRotate } from "@fortawesome/free-solid-svg-icons";
 
 interface PackData {
   title: string;
   description: string;
   publishedAt: string | null;
+  splash_image?: string | null;
+  splash_custom?: boolean;
+}
+
+const MAX_SPLASH_BYTES = 5 * 1024 * 1024;
+
+function SplashEditor({ slug, initialImage, initialCustom }: { slug: string; initialImage: string | null; initialCustom: boolean }) {
+  const [image, setImage] = useState(initialImage);
+  const [custom, setCustom] = useState(initialCustom);
+  const [busy, setBusy] = useState<"upload" | "regen" | null>(null);
+  const [message, setMessage] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const refresh = async () => {
+    const res = await fetch(`/api/packs/${slug}`, { headers: { Accept: "application/json" } });
+    if (res.ok) {
+      const data: PackData = await res.json();
+      setImage(data.splash_image ?? null);
+      setCustom(!!data.splash_custom);
+    }
+  };
+
+  const upload = async (file: File) => {
+    setMessage(null);
+    if (!file.type.startsWith("image/")) {
+      setMessage({ kind: "error", text: "Please choose an image file." });
+      return;
+    }
+    if (file.size > MAX_SPLASH_BYTES) {
+      setMessage({ kind: "error", text: "Image must be 5 MB or smaller." });
+      return;
+    }
+    setBusy("upload");
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      const res = await fetch(`/api/packs/${slug}/splash`, { method: "PUT", body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      setImage(data.splash_image);
+      setCustom(true);
+      setMessage({ kind: "ok", text: "Cover image updated." });
+    } catch (err) {
+      setMessage({ kind: "error", text: err instanceof Error ? err.message : "Upload failed" });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const regenerate = async () => {
+    setMessage(null);
+    setBusy("regen");
+    try {
+      const res = await fetch(`/api/packs/${slug}/splash`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Regeneration failed");
+      await refresh();
+      setMessage({ kind: "ok", text: "Generated cover image from pack accounts." });
+    } catch (err) {
+      setMessage({ kind: "error", text: err instanceof Error ? err.message : "Regeneration failed" });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div>
+      <span className="block text-sm font-medium text-white/80 mb-2">
+        Cover Image{" "}
+        <span className="text-white/40">({custom ? "custom upload" : "auto-generated"})</span>
+      </span>
+      <div className="relative aspect-[1200/630] rounded-lg overflow-hidden border border-white/20 bg-white/5">
+        {image ? (
+          <img src={image} alt="Pack cover" className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full bg-linear-to-br from-pink-500 to-purple-600 flex items-center justify-center text-white/80 text-sm">
+            No cover image yet
+          </div>
+        )}
+        {busy && (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+            <FontAwesomeIcon icon={faSpinner} spin className="w-6 h-6 text-white" />
+          </div>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2 mt-3">
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={!!busy}
+          className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 disabled:opacity-40 transition-colors text-sm"
+        >
+          <FontAwesomeIcon icon={faImage} className="w-4 h-4" />
+          Upload Image
+        </button>
+        <button
+          type="button"
+          onClick={regenerate}
+          disabled={!!busy}
+          className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 disabled:opacity-40 transition-colors text-sm"
+        >
+          <FontAwesomeIcon icon={faRotate} className="w-4 h-4" />
+          {custom ? "Use Generated Image" : "Regenerate"}
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (f) upload(f);
+          }}
+        />
+      </div>
+      <p className="text-white/40 text-xs mt-2">
+        PNG, JPEG, WebP, or GIF up to 5 MB. Cropped to 1200×630. Changes apply immediately.
+      </p>
+      {message && (
+        <p className={`text-xs mt-2 ${message.kind === "error" ? "text-red-400" : "text-[#31dcb2]"}`}>{message.text}</p>
+      )}
+    </div>
+  );
 }
 
 export default function EditPack({ slug }: { slug: string }) {
@@ -16,6 +140,7 @@ export default function EditPack({ slug }: { slug: string }) {
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState({ title: false, description: false });
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [splash, setSplash] = useState<{ image: string | null; custom: boolean }>({ image: null, custom: false });
 
   const titleError = touched.title && !title.trim() ? "Title is required" : null;
   const descError = touched.description && !description.trim() ? "Description is required" : null;
@@ -33,6 +158,7 @@ export default function EditPack({ slug }: { slug: string }) {
         if (!cancelled) {
           setTitle(data.title);
           setDescription(data.description);
+          setSplash({ image: data.splash_image ?? null, custom: !!data.splash_custom });
         }
       } catch (err) {
         if (!cancelled) {
@@ -103,6 +229,9 @@ export default function EditPack({ slug }: { slug: string }) {
 
   return (
     <div className="max-w-2xl mx-auto bg-white/5 rounded-xl border border-white/10 p-6 md:p-8">
+      <div className="mb-6">
+        <SplashEditor slug={slug} initialImage={splash.image} initialCustom={splash.custom} />
+      </div>
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Title */}
         <div>

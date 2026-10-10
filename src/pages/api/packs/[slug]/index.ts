@@ -40,6 +40,8 @@ interface PackDetail {
     updatedAt: Date;
     publishedAt: Date | null;
     splashImage?: string | null;
+    splashImageUpdatedAt?: Date | null;
+    splashImageCustom?: boolean;
     createdBy: PackCreatorProfile;
     accounts: PackAccountRow[];
     _count?: { accounts: number } | null;
@@ -155,7 +157,10 @@ function buildJsonBody(
         created_at: pack.createdAt.toISOString(),
         updated_at: pack.updatedAt.toISOString(),
         published_at: pack.publishedAt?.toISOString() || null,
-        splash_image: pack.splashImage ? `/${pack.splashImage}` : null,
+        splash_image: pack.splashImage
+            ? `/${pack.splashImage}${pack.splashImageUpdatedAt ? `?v=${pack.splashImageUpdatedAt.getTime()}` : ""}`
+            : null,
+        splash_custom: pack.splashImageCustom ?? false,
         numAccounts: pack._count?.accounts || 0,
         followingKnown,
         accounts: pack.accounts.map((spa) => {

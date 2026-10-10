@@ -346,7 +346,8 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
             },
         });
 
-        if (updatedPack) {
+        // Don't overwrite an owner-uploaded custom splash image
+        if (updatedPack && !updatedPack.splashImageCustom) {
             const crawledAccounts: SplashAccount[] = [];
             const uncrawledHandles: string[] = [];
 

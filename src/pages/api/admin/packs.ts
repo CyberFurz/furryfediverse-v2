@@ -167,6 +167,7 @@ export const POST: APIRoute = async (context) => {
             splashImageSignature: newSignature,
             splashImageUpdatedAt: new Date(),
             splashImageNeedsUpdate: false,
+            splashImageCustom: false,
           },
         });
 

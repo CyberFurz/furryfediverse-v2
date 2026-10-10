@@ -213,6 +213,7 @@ model StarterPack {
   splashImageSignature  String   @default("")
   splashImageUpdatedAt  DateTime?
   splashImageNeedsUpdate Boolean @default(false)
+  splashImageCustom     Boolean  @default(false)
   numAccounts           Int      @default(0)
 
   accounts    StarterPackAccount[]

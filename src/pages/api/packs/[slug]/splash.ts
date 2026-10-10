@@ -7,6 +7,8 @@ import {
 	type SplashAccount,
 	getSplashImageSignature,
 	renderSplashImage,
+	saveCustomSplashImage,
+	CUSTOM_SPLASH_MAX_BYTES,
 } from "../../../../lib/packs/splash-image";
 
 /**
@@ -81,7 +83,8 @@ export const POST: APIRoute = async ({ url, locals }) => {
 
 		if (
 			newSignature === pack.splashImageSignature &&
-			!pack.splashImageNeedsUpdate
+			!pack.splashImageNeedsUpdate &&
+			!pack.splashImageCustom
 		) {
 			return new Response(
 				JSON.stringify({
@@ -107,6 +110,7 @@ export const POST: APIRoute = async ({ url, locals }) => {
 				splashImageSignature: newSignature,
 				splashImageUpdatedAt: new Date(),
 				splashImageNeedsUpdate: false,
+				splashImageCustom: false,
 			},
 		});
 
@@ -124,5 +128,81 @@ export const POST: APIRoute = async ({ url, locals }) => {
 			JSON.stringify({ error: "Failed to regenerate splash image" }),
 			{ status: 500, headers: { "Content-Type": "application/json" } },
 		);
+	}
+};
+
+const ALLOWED_UPLOAD_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+
+function json(body: unknown, status: number) {
+	return new Response(JSON.stringify(body), {
+		status,
+		headers: { "Content-Type": "application/json" },
+	});
+}
+
+/**
+ * PUT /api/packs/:slug/splash
+ *
+ * Upload a custom splash image (multipart field "image"). The image is
+ * cropped to 1200×630 and replaces the generated one. Auto-regeneration
+ * (e.g. after imports) is suppressed until the owner regenerates via POST.
+ */
+export const PUT: APIRoute = async ({ params, request, locals }) => {
+	const { user, error: authError } = requireUser(locals);
+	if (authError || !user) return authError!;
+
+	try {
+		const { slug } = params;
+		if (!slug) return json({ error: "Slug is required" }, 400);
+
+		const pack = await prisma.starterPack.findFirst({
+			where: { slug, deletedAt: null },
+			select: { id: true, slug: true, createdById: true },
+		});
+		if (!pack) return json({ error: "Starter pack not found" }, 404);
+		if (pack.createdById !== user.id) {
+			return json({ error: "You can only manage your own starter packs" }, 403);
+		}
+
+		const formData = await request.formData();
+		const file = formData.get("image");
+		if (!file || !(file instanceof File)) {
+			return json({ error: "Image file is required" }, 400);
+		}
+		if (!ALLOWED_UPLOAD_TYPES.has(file.type)) {
+			return json({ error: "Image must be PNG, JPEG, WebP, or GIF" }, 400);
+		}
+		if (file.size > CUSTOM_SPLASH_MAX_BYTES) {
+			return json({ error: "Image must be 5 MB or smaller" }, 400);
+		}
+
+		try {
+			await saveCustomSplashImage(pack.slug, Buffer.from(await file.arrayBuffer()));
+		} catch {
+			return json({ error: "Could not process image" }, 400);
+		}
+
+		const updated = await prisma.starterPack.update({
+			where: { id: pack.id },
+			data: {
+				splashImage: `splash/${pack.slug}.png`,
+				splashImageCustom: true,
+				splashImageNeedsUpdate: false,
+				splashImageUpdatedAt: new Date(),
+			},
+			select: { splashImage: true, splashImageUpdatedAt: true },
+		});
+
+		return json(
+			{
+				message: "Splash image uploaded",
+				splash_image: `/${updated.splashImage}?v=${updated.splashImageUpdatedAt!.getTime()}`,
+				splash_custom: true,
+			},
+			200,
+		);
+	} catch (error) {
+		console.error("Error uploading splash image:", error);
+		return json({ error: "Failed to upload splash image" }, 500);
 	}
 };

@@ -543,3 +543,25 @@ export async function renderSplashImage(
 		throw err;
 	}
 }
+
+/** Max accepted upload size for a custom splash image (bytes). */
+export const CUSTOM_SPLASH_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Save an owner-uploaded image as the pack's splash, cropped/resized to the
+ * standard 1200×630 OG size and written to `public/splash/{slug}.png` (the
+ * same path as generated images, so share URLs stay stable).
+ *
+ * Throws if the buffer is not a decodable image.
+ */
+export async function saveCustomSplashImage(slug: string, input: Buffer): Promise<void> {
+	const outputDir = path.resolve(process.cwd(), "public", "splash");
+	await fs.mkdir(outputDir, { recursive: true });
+	const outputPath = path.join(outputDir, `${slug}.png`);
+
+	await sharp(input, { limitInputPixels: 50_000_000 })
+		.rotate() // respect EXIF orientation
+		.resize(SPLASH_WIDTH, SPLASH_HEIGHT, { fit: "cover", position: "attention" })
+		.png()
+		.toFile(outputPath);
+}

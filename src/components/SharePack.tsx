@@ -140,15 +140,6 @@ function AdminDropdown({ slug, published, publishing, onTogglePublish, deleting,
     );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
-    return (
-        <div className="bg-white/5 rounded-xl p-4 border border-white/10 text-center">
-            <p className="text-2xl font-bold text-white">{value}</p>
-            <p className="text-xs text-white/50 mt-1">{label}</p>
-        </div>
-    );
-}
-
 // --- Main ---
 export default function SharePack({ slug, user = null, hasLinkedProfile = false }: {
     slug: string; user?: any | null; hasLinkedProfile?: boolean;
@@ -288,19 +279,21 @@ export default function SharePack({ slug, user = null, hasLinkedProfile = false 
 
     return (
         <div className="space-y-8">
-            {/* Splash */}
-            {pack.splash_image ? (
-                <div className="aspect-[1200/630] rounded-xl overflow-hidden border border-white/10">
-                    <img src={pack.splash_image} alt={pack.title} className="w-full h-full object-cover" />
+            {/* Hero: splash with header blended over its lower portion */}
+            <div className="relative">
+                <div className="relative aspect-[1200/630] rounded-t-xl overflow-hidden">
+                    {pack.splash_image ? (
+                        <img src={pack.splash_image} alt={pack.title} className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="w-full h-full bg-linear-to-br from-pink-500 to-purple-600" />
+                    )}
+                    <div className="absolute inset-0 bg-linear-to-t from-[#0A2B49] via-[#0A2B49]/60 via-35% to-transparent to-70%" />
                 </div>
-            ) : (
-                <div className="aspect-[1200/630] rounded-xl bg-linear-to-br from-pink-500 to-purple-600 border border-white/10" />
-            )}
 
             {/* Header */}
-            <div>
+            <div className="relative -mt-20 sm:-mt-28 md:-mt-36 px-4 sm:px-6 md:px-8">
                 <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-2xl md:text-3xl font-bold text-white">{pack.title}</h1>
+                    <h1 className="text-2xl md:text-4xl font-bold text-white drop-shadow-lg">{pack.title}</h1>
                     {!isPublished && <span className="shrink-0 text-xs px-2 py-0.5 rounded-full border bg-amber-500/20 text-amber-300 border-amber-500/50">Draft</span>}
                     {isOwner && (
                         <div className="ml-auto">
@@ -308,23 +301,31 @@ export default function SharePack({ slug, user = null, hasLinkedProfile = false 
                         </div>
                     )}
                 </div>
-                <p className="text-white/60">{pack.description}</p>
-                <p className="text-xs text-white/40 mt-3">
-                    Created by{" "}
-                    {creatorProfileUrl ? (
-                        <a href={creatorProfileUrl} target="_blank" rel="noopener noreferrer" className="text-[#31dcb2] hover:underline">
-                            {creatorName}
-                        </a>
-                    ) : (
-                        creatorName
-                    )}
-                </p>
+                <p className="text-white/80 drop-shadow max-w-3xl">{pack.description}</p>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-4">
+                    <div className="flex gap-2">
+                        {[
+                            { label: "Accounts", value: accountCount },
+                            { label: "Servers", value: serverCount },
+                        ].map((s) => (
+                            <div key={s.label} className="flex items-baseline gap-1.5 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/15">
+                                <span className="text-base font-bold text-white">{s.value}</span>
+                                <span className="text-xs text-white/60">{s.label}</span>
+                            </div>
+                        ))}
+                    </div>
+                    <p className="text-xs text-white/60">
+                        Created by{" "}
+                        {creatorProfileUrl ? (
+                            <a href={creatorProfileUrl} target="_blank" rel="noopener noreferrer" className="text-[#31dcb2] hover:underline">
+                                {creatorName}
+                            </a>
+                        ) : (
+                            creatorName
+                        )}
+                    </p>
+                </div>
             </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-2 gap-4">
-                <StatCard label="Accounts" value={accountCount} />
-                <StatCard label="Servers" value={serverCount} />
             </div>
 
             {/* Follow options */}
