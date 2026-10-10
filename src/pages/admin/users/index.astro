@@ -1,6 +1,7 @@
 ---
 export const prerender = false;
 import Layout from "../../../layouts/Layout.astro";
+import { prisma } from "../../../lib/prisma";
 
 const user = Astro.locals.user;
 
@@ -14,10 +15,13 @@ if (!isAdmin) {
 	return Astro.redirect("/auth/dashboard");
 }
 
+const limitParam = parseInt(new URL(Astro.request.url).searchParams.get("limit") || "50");
+const limit = [50, 100, 250, 500].includes(limitParam) ? limitParam : 50;
+
 async function getUsers(query?: string, page?: number) {
 	try {
 		const params = new URLSearchParams({
-			limit: "50",
+			limit: String(limit),
 			sortBy: "createdAt",
 			sortDirection: "desc",
 		});
@@ -27,7 +31,7 @@ async function getUsers(query?: string, page?: number) {
 			params.set("searchOperator", "contains");
 		}
 		if (page && page > 1) {
-			params.set("offset", String((page - 1) * 50));
+			params.set("offset", String((page - 1) * limit));
 		}
 
 		const res = await fetch(`${process.env.BETTER_AUTH_URL || "http://localhost:4321"}/api/auth/admin/list-users?${params}`, {
@@ -44,8 +48,24 @@ const searchParam = new URL(Astro.request.url).searchParams.get("search") || "";
 const pageParam = parseInt(new URL(Astro.request.url).searchParams.get("page") || "1");
 const usersData = await getUsers(searchParam, pageParam);
 const users = usersData?.users || [];
+const linkedRows = users.length
+	? await prisma.linkedProfile.findMany({
+			where: { userId: { in: users.map((u: any) => u.id) } },
+			select: { userId: true, username: true, instanceDomain: true },
+		}).catch(() => [])
+	: [];
+const linkedByUser = new Map<string, string>();
+for (const row of linkedRows as any[]) {
+	if (!linkedByUser.has(row.userId)) linkedByUser.set(row.userId, `@${row.username}@${row.instanceDomain}`);
+}
 const total = usersData?.total || 0;
-const limit = 50;
+const pageHref = (p: number) => {
+	const qs = new URLSearchParams();
+	if (searchParam) qs.set("search", searchParam);
+	if (limit !== 50) qs.set("limit", String(limit));
+	qs.set("page", String(p));
+	return `/admin/users?${qs}`;
+};
 const currentPage = pageParam;
 const totalPages = Math.ceil(total / limit);
 ---
@@ -82,17 +102,31 @@ const totalPages = Math.ceil(total / limit);
 						placeholder="Search by email..."
 						class="flex-1 px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors"
 					/>
+					<select name="limit" class="px-3 py-3 bg-white/5 border border-white/20 rounded-lg text-white" title="Users per page">
+						{[50, 100, 250, 500].map((n) => <option value={n} selected={n === limit}>{n} / page</option>)}
+					</select>
 					<button type="submit" class="bg-[#31dcb2] text-[#12384b] font-semibold px-6 py-3 rounded-lg hover:bg-[#28c4a0] transition-colors">
 						Search
 					</button>
 				</form>
 			</div>
 
+			<div id="bulk-bar" class="hidden sticky top-2 z-40 bg-red-900/80 backdrop-blur border border-red-500/50 rounded-xl px-6 py-3 mb-4 flex items-center justify-between gap-4">
+				<span class="text-white text-sm"><span id="bulk-count">0</span> selected</span>
+				<div class="flex gap-2">
+					<button id="bulk-select-unlinked" class="px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20">Select all without fediverse</button>
+					<button id="bulk-clear" class="px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20">Clear</button>
+					<button id="bulk-delete" class="px-4 py-2 text-sm bg-red-600 font-semibold rounded-lg text-white hover:bg-red-500 disabled:opacity-50">Delete selected</button>
+				</div>
+			</div>
+
 			<div class="bg-[#0D3559] rounded-xl border border-white/10 overflow-hidden">
 				<table class="w-full">
 					<thead class="bg-white/5 border-b border-white/10">
 						<tr>
+							<th class="pl-6 py-4 w-8"><input type="checkbox" id="select-all" title="Select all on this page" class="w-4 h-4 accent-[#31dcb2] cursor-pointer" /></th>
 							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">User</th>
+							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Fediverse</th>
 							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Role</th>
 							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Status</th>
 							<th class="text-left px-6 py-4 text-white/60 font-medium text-sm">Created</th>
@@ -102,8 +136,17 @@ const totalPages = Math.ceil(total / limit);
 					<tbody>
 						{users.map((u: any) => {
 							const userRoles = (u.role || "user").split(",");
+							const protectedUser = userRoles.includes("admin") || u.id === user.id;
+							const linked = linkedByUser.get(u.id);
 							return (
 								<tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+									<td class="pl-6 py-4">
+										{protectedUser ? (
+											<input type="checkbox" disabled title="Admins and yourself cannot be bulk deleted" class="w-4 h-4 opacity-30" />
+										) : (
+											<input type="checkbox" class="row-select w-4 h-4 accent-[#31dcb2] cursor-pointer" data-user-id={u.id} data-linked={linked ? "1" : "0"} />
+										)}
+									</td>
 									<td class="px-6 py-4">
 										<div class="flex items-center gap-3">
 											<div class="w-10 h-10 bg-[#31dcb2] rounded-full flex items-center justify-center text-[#12384b] font-bold text-sm shrink-0">
@@ -114,6 +157,13 @@ const totalPages = Math.ceil(total / limit);
 												<p class="text-white/60 text-sm">{u.email}</p>
 											</div>
 										</div>
+									</td>
+									<td class="px-6 py-4 text-sm">
+										{linked ? (
+											<span class="text-[#9ff0dc] break-all">{linked}</span>
+										) : (
+											<span class="px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded text-xs font-medium">None (legacy)</span>
+										)}
 									</td>
 									<td class="px-6 py-4">
 										<div class="flex gap-1 flex-wrap">
@@ -168,10 +218,10 @@ const totalPages = Math.ceil(total / limit);
 					</p>
 					<div class="flex gap-2">
 						{currentPage > 1 && (
-							<a href={`/admin/users?${searchParam ? `search=${searchParam}&` : ""}page=${currentPage - 1}`} class="px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors no-underline">Previous</a>
+							<a href={pageHref(currentPage - 1)} class="px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors no-underline">Previous</a>
 						)}
 						{currentPage < totalPages && (
-							<a href={`/admin/users?${searchParam ? `search=${searchParam}&` : ""}page=${currentPage + 1}`} class="px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors no-underline">Next</a>
+							<a href={pageHref(currentPage + 1)} class="px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors no-underline">Next</a>
 						)}
 					</div>
 				</div>
@@ -353,6 +403,66 @@ const totalPages = Math.ceil(total / limit);
 			errorEl?.classList.remove("hidden");
 			if (errorEl) errorEl.textContent = msg;
 			submitBtn.disabled = false;
+		}
+	});
+
+	// --- Bulk selection / delete ---
+	const rowBoxes = Array.from(document.querySelectorAll<HTMLInputElement>(".row-select"));
+	const selectAll = document.getElementById("select-all") as HTMLInputElement | null;
+	const bulkBar = document.getElementById("bulk-bar");
+	const bulkCount = document.getElementById("bulk-count");
+	const bulkDeleteBtn = document.getElementById("bulk-delete") as HTMLButtonElement | null;
+
+	function selectedIds() {
+		return rowBoxes.filter((b) => b.checked).map((b) => b.dataset.userId!).filter(Boolean);
+	}
+
+	function refreshBulk() {
+		const n = selectedIds().length;
+		if (bulkCount) bulkCount.textContent = String(n);
+		bulkBar?.classList.toggle("hidden", n === 0);
+		if (selectAll) {
+			selectAll.checked = n > 0 && n === rowBoxes.length;
+			selectAll.indeterminate = n > 0 && n < rowBoxes.length;
+		}
+	}
+
+	rowBoxes.forEach((b) => b.addEventListener("change", refreshBulk));
+	selectAll?.addEventListener("change", () => {
+		rowBoxes.forEach((b) => (b.checked = selectAll.checked));
+		refreshBulk();
+	});
+	document.getElementById("bulk-select-unlinked")?.addEventListener("click", () => {
+		rowBoxes.forEach((b) => (b.checked = b.dataset.linked === "0"));
+		refreshBulk();
+	});
+	document.getElementById("bulk-clear")?.addEventListener("click", () => {
+		rowBoxes.forEach((b) => (b.checked = false));
+		refreshBulk();
+	});
+
+	bulkDeleteBtn?.addEventListener("click", async () => {
+		const ids = selectedIds();
+		if (ids.length === 0) return;
+		const typed = prompt(
+			`Permanently delete ${ids.length} user(s)?\n\nThis also deletes their starter packs, instances, linked profiles and sessions. This cannot be undone.\n\nType DELETE to confirm.`,
+		);
+		if (typed !== "DELETE") return;
+
+		bulkDeleteBtn.disabled = true;
+		bulkDeleteBtn.textContent = "Deleting...";
+		try {
+			const res = await callAdminAction("removeUsers", { userIds: ids });
+			const { deleted = [], skipped = [], failed = [] } = res.data || {};
+			showToast(`Deleted ${deleted.length} user(s)${skipped.length ? `, skipped ${skipped.length}` : ""}`);
+			if (failed.length) {
+				showToast(`${failed.length} failed: ${failed[0].error}`, "error");
+			}
+			setTimeout(() => window.location.reload(), 1200);
+		} catch (err: unknown) {
+			showToast(err instanceof Error ? err.message : "Bulk delete failed", "error");
+			bulkDeleteBtn.disabled = false;
+			bulkDeleteBtn.textContent = "Delete selected";
 		}
 	});
 

@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import type { APIRoute } from "astro";
 
 export const prerender = false;
@@ -58,6 +59,48 @@ export const POST: APIRoute = async (context) => {
           headers: context.request.headers,
         });
         break;
+      case "removeUsers": {
+        const ids: unknown = body.userIds;
+        if (!Array.isArray(ids) || ids.length === 0 || ids.length > 500) {
+          return new Response(
+            JSON.stringify({ error: "userIds must be an array of 1-500 IDs" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const uniqueIds = [...new Set(ids.filter((id): id is string => typeof id === "string"))];
+        const targets = await prisma.user.findMany({
+          where: { id: { in: uniqueIds } },
+          select: { id: true, role: true },
+        });
+        const deleted: string[] = [];
+        const skipped: { id: string; reason: string }[] = [];
+        const failed: { id: string; error: string }[] = [];
+        const found = new Set(targets.map((t) => t.id));
+        for (const id of uniqueIds) {
+          if (!found.has(id)) skipped.push({ id, reason: "not found" });
+        }
+        for (const target of targets) {
+          if (target.id === session.user.id) {
+            skipped.push({ id: target.id, reason: "cannot delete yourself" });
+            continue;
+          }
+          if (isAdmin(target)) {
+            skipped.push({ id: target.id, reason: "is an admin" });
+            continue;
+          }
+          try {
+            await auth.api.removeUser({
+              body: { userId: target.id },
+              headers: context.request.headers,
+            });
+            deleted.push(target.id);
+          } catch (err: unknown) {
+            failed.push({ id: target.id, error: err instanceof Error ? err.message : "failed" });
+          }
+        }
+        result = { deleted, skipped, failed };
+        break;
+      }
       case "removeUser":
         result = await auth.api.removeUser({
           body: { userId },
