@@ -209,6 +209,10 @@ model StarterPack {
   status                String   @default("draft")
   submittedAt           DateTime?
   publishedAt           DateTime?
+  splashImage           String   @default("")
+  splashImageSignature  String   @default("")
+  splashImageUpdatedAt  DateTime?
+  splashImageNeedsUpdate Boolean @default(false)
   numAccounts           Int      @default(0)
 
   accounts    StarterPackAccount[]
