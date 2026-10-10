@@ -9,6 +9,7 @@ import {
     searchRemoteAccounts,
     type RemoteAccount,
 } from "../../../../../lib/social/remote-accounts";
+import { getOptedOutHandles, isOptedOut, packAccountHandle } from "../../../../../lib/packs/opt-out";
 import { getEditablePack, getOwnerView } from "../../../../../lib/packs/revisions";
 import { normalizeHandle, isValidHandle, toBridgedBlueskyHandle, MAX_HANDLE_LENGTH } from "../../../../../lib/social/handles";
 
@@ -105,7 +106,19 @@ export const GET: APIRoute = async ({ url, locals }) => {
         });
         const existingSet = new Set(existingAccountIds.map((a) => a.linkedProfileId));
 
-        const results = profiles.map((p) => ({
+        // Hide accounts that opted out of starter packs.
+        const optedOut = await getOptedOutHandles([
+            ...profiles.map((p) => packAccountHandle({ linkedProfile: p })),
+            ...remoteAccounts.map((ra) => ra.handle),
+        ]);
+        const isOut = (h: string | null) => !!h && optedOut.has(h.toLowerCase().replace(/^@/, ""));
+        for (let i = remoteAccounts.length - 1; i >= 0; i--) {
+            if (isOut(remoteAccounts[i].handle)) remoteAccounts.splice(i, 1);
+        }
+
+        const results = profiles
+          .filter((p) => !isOut(packAccountHandle({ linkedProfile: p })))
+          .map((p) => ({
             id: p.id,
             // The UI toggles on linkedProfileId + avatar; keep the raw
             // fields too for any other consumers.
@@ -240,6 +253,13 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
                 await prisma.starterPackAccount.delete({ where: { id: existing.id } });
                 inStarterPack = false;
             } else {
+                if (await isOptedOut(normalizedHandle)) {
+                    return new Response(
+                        JSON.stringify({ error: "This account has opted out of starter packs" }),
+                        { status: 403, headers: { "Content-Type": "application/json" } }
+                    );
+                }
+
                 // Check max accounts limit
                 const accountCount = await prisma.starterPackAccount.count({
                     where: { starterPackId: target.id },
@@ -301,13 +321,20 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
                 // Check account is discoverable
                 const profile = await prisma.linkedProfile.findUnique({
                     where: { id: linkedProfileId },
-                    select: { isActive: true },
+                    select: { isActive: true, acct: true, instanceDomain: true },
                 });
 
                 if (!profile) {
                     return new Response(
                         JSON.stringify({ error: "Linked profile not found" }),
                         { status: 404, headers: { "Content-Type": "application/json" } }
+                    );
+                }
+
+                if (await isOptedOut(packAccountHandle({ linkedProfile: profile }))) {
+                    return new Response(
+                        JSON.stringify({ error: "This account has opted out of starter packs" }),
+                        { status: 403, headers: { "Content-Type": "application/json" } }
                     );
                 }
 

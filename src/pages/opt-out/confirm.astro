@@ -1,0 +1,75 @@
+---
+export const prerender = false;
+import Layout from "../../layouts/Layout.astro";
+import { findPendingByToken } from "../../lib/packs/opt-out";
+
+// Only *display* the request here. Confirming happens via an explicit POST
+// from the button, because fediverse servers fetch links in DMs to build
+// previews and a GET must never change anything.
+const token = Astro.url.searchParams.get("token") || "";
+const pending = token ? await findPendingByToken(token) : null;
+---
+
+<Layout title="Confirm Opt-Out - Furry Fediverse">
+	<main class="p-2 md:p-5 lg:px-60 2xl:px-80">
+		<div class="py-8 max-w-2xl mx-auto">
+			<h1 class="text-3xl font-bold text-white mb-6">Confirm opt-out</h1>
+
+			{pending ? (
+				<div id="confirm-box" class="bg-[#0D3559] rounded-xl p-6 border border-white/10 space-y-4">
+					<p class="text-white/80">
+						Remove <strong class="text-white">@{pending.handle}</strong> from all starter packs on Furry Fediverse
+						and prevent it from being added in the future?
+					</p>
+					<button
+						id="confirm-btn"
+						data-token={token}
+						class="w-full py-3 bg-[#31dcb2] text-[#12384b] font-semibold rounded-lg hover:bg-[#28c4a0] disabled:opacity-40 transition-colors"
+					>
+						Yes, opt me out
+					</button>
+					<div id="confirm-result" class="hidden p-3 rounded-lg text-sm" role="status" aria-live="polite"></div>
+				</div>
+			) : (
+				<div class="bg-[#0D3559] rounded-xl p-6 border border-white/10">
+					<p class="text-white/80 mb-4">This confirmation link is invalid, has expired, or was already used.</p>
+					<a href="/opt-out" class="inline-block bg-[#31dcb2] text-[#12384b] font-semibold px-5 py-2 rounded-lg hover:bg-[#28c4a0] no-underline">
+						Request a new link
+					</a>
+				</div>
+			)}
+		</div>
+	</main>
+</Layout>
+
+<script>
+	const btn = document.getElementById("confirm-btn") as HTMLButtonElement | null;
+	const result = document.getElementById("confirm-result");
+
+	btn?.addEventListener("click", async () => {
+		btn.disabled = true;
+		btn.textContent = "Confirming...";
+		try {
+			const res = await fetch("/api/opt-out/confirm", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ token: btn.dataset.token }),
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(data.error || "Something went wrong");
+			btn.remove();
+			if (result) {
+				result.className = "p-3 rounded-lg text-sm border bg-emerald-500/10 border-emerald-500/30 text-emerald-300";
+				result.textContent = `Done. @${data.handle} has been opted out` +
+					(data.removed > 0 ? ` and removed from ${data.removed} pack listing${data.removed === 1 ? "" : "s"}.` : ".");
+			}
+		} catch (err) {
+			btn.disabled = false;
+			btn.textContent = "Yes, opt me out";
+			if (result) {
+				result.className = "p-3 rounded-lg text-sm border bg-red-500/10 border-red-500/30 text-red-300";
+				result.textContent = err instanceof Error ? err.message : "Something went wrong";
+			}
+		}
+	});
+</script>

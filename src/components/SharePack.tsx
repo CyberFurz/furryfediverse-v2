@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSpinner, faEllipsisVertical, faUserPlus } from "@fortawesome/free-solid-svg-icons";
 import { isBlueskyBridgedHandle } from "@/lib/social/handles";
+import PackStatusBadge from "./PackStatusBadge";
 import { BLUESKY_CARD_CLASSES, BlueskyAvatarBadge, BlueskyLabel } from "./BlueskyBadge";
 
 // --- Types ---
@@ -387,6 +388,8 @@ export default function SharePack({ slug, user = null, hasLinkedProfile = false 
                     <h1 className="text-2xl md:text-4xl font-bold text-white drop-shadow-lg">{pack.title}</h1>
                     {pack.is_revision ? (
                         <span className="shrink-0 text-xs px-2 py-0.5 rounded-full border bg-sky-500/20 text-sky-300 border-sky-500/50">Pending changes</span>
+                    ) : isOwner ? (
+                        !(pack.status === "approved" && isPublished) && <PackStatusBadge status={pack.status} publishedAt={pack.published_at} />
                     ) : !isPublished && <span className="shrink-0 text-xs px-2 py-0.5 rounded-full border bg-amber-500/20 text-amber-300 border-amber-500/50">Draft</span>}
                     {isOwner && !pack.is_revision && (
                         <div className="ml-auto">

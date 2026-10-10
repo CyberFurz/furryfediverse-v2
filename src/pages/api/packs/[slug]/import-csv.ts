@@ -9,6 +9,7 @@ import {
 	renderSplashImage,
 } from "@/lib/packs/splash-image";
 import { getEditablePack } from "@/lib/packs/revisions";
+import { getOptedOutHandles, packAccountHandle } from "@/lib/packs/opt-out";
 
 /** Supported import file types. */
 type FileType = "csv" | "json";
@@ -240,6 +241,11 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
             );
         }
 
+        // Drop accounts that opted out of starter packs.
+        const optedOut = await getOptedOutHandles(handles);
+        const optedOutCount = handles.filter((h) => optedOut.has(h)).length;
+        handles = handles.filter((h) => !optedOut.has(h));
+
         // Look up handles in LinkedProfile table
         // Try matching both with and without @ prefix
         const handleVariants = handles.flatMap((h) => [
@@ -247,13 +253,20 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
             { acct: { contains: `@${h}`, mode: "insensitive" as const } },
         ]);
 
-        const matchedProfiles = await prisma.linkedProfile.findMany({
+        const matchedProfilesRaw = await prisma.linkedProfile.findMany({
             where: {
                 isActive: true,
                 OR: handleVariants,
             },
-            select: { id: true, acct: true },
+            select: { id: true, acct: true, instanceDomain: true },
         });
+        // Fuzzy matching above can pull in other profiles; never add opted-out ones.
+        const optedOutProfiles = await getOptedOutHandles(
+            matchedProfilesRaw.map((p) => packAccountHandle({ linkedProfile: p })),
+        );
+        const matchedProfiles = matchedProfilesRaw.filter(
+            (p) => !optedOutProfiles.has(packAccountHandle({ linkedProfile: p }) ?? ""),
+        );
 
         // Build set of normalized accts from matched profiles
         const matchedAcctSet = new Set(matchedProfiles.map((p) => normalizeHandle(p.acct)));
@@ -391,12 +404,13 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
         }
 
         const imported = createData.length;
-        const skipped = handles.length - imported;
+        const skipped = handles.length + optedOutCount - imported;
 
         return new Response(
             JSON.stringify({
                 imported,
                 skipped,
+                optedOut: optedOutCount,
                 total: handles.length,
                 matchedInDb: matchedProfiles.length,
                 packTotalAccounts: discoverableCount,

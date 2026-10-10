@@ -277,3 +277,23 @@ model PackAuditLog {
   @@index([packId, createdAt])
   @@map("pack_audit_log")
 }
+
+// Fediverse users can opt out of being listed in starter packs without an
+// account here. Ownership is proven by a confirmation link sent by DM from
+// the site's bot account. Confirmed handles are removed from every pack and
+// can't be added again.
+model PackOptOut {
+  id             String    @id @default(cuid())
+  handle         String    @unique // canonical lowercase user@domain
+  status         String    @default("pending") // "pending" | "confirmed"
+  tokenHash      String?   @unique
+  tokenExpiresAt DateTime?
+  lastDmSentAt   DateTime?
+  requestIpHash  String?
+  requestedAt    DateTime  @default(now())
+  confirmedAt    DateTime?
+
+  @@index([status])
+  @@index([requestIpHash, lastDmSentAt])
+  @@map("pack_opt_out")
+}

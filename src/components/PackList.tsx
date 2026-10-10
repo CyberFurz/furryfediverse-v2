@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons";
+import PackStatusBadge from "./PackStatusBadge";
 import { QueryClient, QueryClientProvider, useInfiniteQuery, keepPreviousData } from "@tanstack/react-query";
 
 // --- Types ---
@@ -11,6 +12,7 @@ interface Pack {
     description: string;
     createdAt: string;
     publishedAt: string | null;
+    status?: string;
     numAccounts: number;
     splashImage: string;
     createdBy: { id: string; name: string };
@@ -66,7 +68,6 @@ function SkeletonCard() {
 
 // --- Pack card ---
 function PackCard({ pack }: { pack: Pack }) {
-    const isPublished = !!pack.publishedAt;
     const accountCount = pack._count?.accounts ?? pack.numAccounts ?? 0;
 
     return (
@@ -93,12 +94,7 @@ function PackCard({ pack }: { pack: Pack }) {
             <div className="p-5">
                 <div className="flex items-start justify-between gap-2 mb-2">
                     <h3 className="font-bold text-white text-lg truncate">{pack.title}</h3>
-                    <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full border ${isPublished
-                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50"
-                        : "bg-amber-500/20 text-amber-300 border-amber-500/50"
-                    }`}>
-                        {isPublished ? "Published" : "Draft"}
-                    </span>
+                    <PackStatusBadge status={pack.status} publishedAt={pack.publishedAt} />
                 </div>
                 {pack.description && (
                     <p className="text-sm text-white/60 line-clamp-2 mb-3">{pack.description}</p>
