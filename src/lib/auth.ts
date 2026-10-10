@@ -8,18 +8,12 @@ import { adminAc, defaultStatements } from "better-auth/plugins/admin/access";
 
 const statement = {
   ...defaultStatements,
-  article: ["approve", "reject", "list"],
 } as const;
 
 const ac = createAccessControl(statement);
 
 const adminRole = ac.newRole({
   ...adminAc.statements,
-  article: ["approve", "reject", "list"],
-});
-
-const reviewerRole = ac.newRole({
-  article: ["approve", "reject", "list"],
 });
 
 const userRole = ac.newRole({
@@ -67,7 +61,6 @@ export const auth = betterAuth({
       ac,
       roles: {
         admin: adminRole,
-        reviewer: reviewerRole,
         user: userRole,
       },
       adminRoles: ["admin"],

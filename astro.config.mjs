@@ -1,4 +1,5 @@
 // @ts-check
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 
 import react from '@astrojs/react';
@@ -16,7 +17,7 @@ export default defineConfig({
     plugins: [tailwindcss()],
     resolve: {
       alias: {
-        "@": "./src"
+        "@": fileURLToPath(new URL("./src", import.meta.url))
       }
     },
     // Dev only: allow extra hostnames (e.g. the TLS test proxy) without

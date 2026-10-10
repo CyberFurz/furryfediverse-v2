@@ -66,7 +66,7 @@ The Fediverse auth can operate in three modes:
 
 #### Core Models
 
-- **User** — Better-Auth user with role-based access control (admin, reviewer, user)
+- **User** — Better-Auth user with role-based access control (admin, user)
 - **Session** — Active user sessions with IP/User-Agent tracking
 - **Account** — OAuth provider accounts (credential-based for Fediverse derived passwords)
 - **LinkedProfile** — Fediverse accounts linked to users, includes profile sync data
@@ -76,8 +76,6 @@ The Fediverse auth can operate in three modes:
 
 - **Instance** — Fediverse instances with metadata (user count, instance type, registration status)
 - **InstanceApiKey** — API keys for verifying instances
-- **Article** — Published articles (how-to, self-hosting guides)
-- **ArticleDraft** — Draft articles pending review
 
 ## API Reference
 
@@ -116,15 +114,6 @@ All auth endpoints are under `/api/auth/` and use Better-Auth's REST API (`/[...
 | `/api/instances/verify/[apiKey]` | GET | Verify instance via API key |
 | `/api/instances/images/[filename]` | GET | Serve cached instance thumbnails |
 
-### Articles
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/learn` | GET | List published articles |
-| `/api/learn` | POST | Submit new article draft (auth required) |
-| `/api/learn/articles/[id]` | GET | Get article by ID |
-| `/api/learn/my-drafts` | GET | List user's drafts |
-| `/api/learn/images/[filename]` | GET | Serve cached article images |
 
 ### Admin
 

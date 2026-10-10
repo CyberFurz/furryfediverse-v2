@@ -27,8 +27,6 @@ model User {
   sessions      Session[]
   accounts      Account[]
   instances     Instance[]
-  articles      Article[]
-  articleDrafts ArticleDraft[]
   linkedProfiles     LinkedProfile[]
   starterPacks       StarterPack[]
   starterPackAccounts StarterPackAccount[]
@@ -196,41 +194,6 @@ model InstanceApiKey {
 
   @@index([apiKey])
   @@map("instance_api_key")
-}
-
-model Article {
-  id         String         @id @default(cuid())
-  title      String
-  content    String
-  category   String         // "self-hosting", "how-to", "other"
-  authorId   String
-  author     User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  drafts     ArticleDraft[]
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-
-  @@index([authorId])
-  @@index([category])
-  @@map("article")
-}
-
-model ArticleDraft {
-  id         String   @id @default(cuid())
-  articleId  String?  // null for new submissions, set when linked to published article
-  article    Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  title      String
-  content    String
-  category   String   // "self-hosting", "how-to", "other"
-  authorId   String
-  author     User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  status     String   @default("pending") // "draft", "pending", "approved", "rejected"
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([authorId])
-  @@index([articleId])
-  @@index([status])
-  @@map("article_draft")
 }
 
 model StarterPack {

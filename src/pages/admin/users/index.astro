@@ -118,7 +118,7 @@ const totalPages = Math.ceil(total / limit);
 									<td class="px-6 py-4">
 										<div class="flex gap-1 flex-wrap">
 											{userRoles.map((r: string) => (
-												<span class={`px-2 py-1 rounded text-xs font-medium ${r === "admin" ? "bg-purple-500/20 text-purple-300" : r === "reviewer" ? "bg-yellow-500/20 text-yellow-300" : "bg-blue-500/20 text-blue-300"}`}>
+												<span class={`px-2 py-1 rounded text-xs font-medium ${r === "admin" ? "bg-purple-500/20 text-purple-300" : "bg-blue-500/20 text-blue-300"}`}>
 													{r}
 												</span>
 											))}
@@ -207,7 +207,6 @@ const totalPages = Math.ceil(total / limit);
 				<label class="block text-sm font-medium text-white/80 mb-2">Role</label>
 				<select id="create-role" class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2]">
 					<option value="user">User</option>
-					<option value="reviewer">Reviewer</option>
 					<option value="admin">Admin</option>
 				</select>
 			</div>
@@ -241,7 +240,6 @@ const totalPages = Math.ceil(total / limit);
 				<label class="block text-sm font-medium text-white/80 mb-2">Role</label>
 				<select id="edit-role" class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2]">
 					<option value="user">User</option>
-					<option value="reviewer">Reviewer</option>
 					<option value="admin">Admin</option>
 				</select>
 			</div>
@@ -324,7 +322,7 @@ const totalPages = Math.ceil(total / limit);
 			(document.getElementById("edit-email") as HTMLInputElement).value = target.dataset.userEmail || "";
 
 			const roles = (target.dataset.userRole || "user").split(",");
-			const currentRole = roles.includes("admin") ? "admin" : roles.includes("reviewer") ? "reviewer" : "user";
+			const currentRole = roles.includes("admin") ? "admin" : "user";
 			(document.getElementById("edit-role") as HTMLSelectElement).value = currentRole;
 
 			editModal?.classList.remove("hidden");
