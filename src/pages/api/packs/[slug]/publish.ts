@@ -3,6 +3,7 @@ export const prerender = false;
 import type { APIRoute } from "astro";
 import { prisma } from "../../../../lib/prisma";
 import { requireUser } from "../../../../lib/api-helpers";
+import { notifyAdminsPackPending } from "../../../../lib/admin-notify";
 
 export const POST: APIRoute = async ({ url, locals }) => {
     const { user, error: authError } = requireUser(locals);
@@ -66,6 +67,11 @@ export const POST: APIRoute = async ({ url, locals }) => {
                     _count: { select: { accounts: true } },
                 },
             });
+            void notifyAdminsPackPending({
+                name: updated.name,
+                slug: updated.slug,
+                submitterName: updated.createdBy?.name,
+            });
             return new Response(
                 JSON.stringify(updated),
                 { status: 200, headers: { "Content-Type": "application/json" } }
@@ -84,6 +90,16 @@ export const POST: APIRoute = async ({ url, locals }) => {
                 _count: { select: { accounts: true } },
             },
         });
+
+        // Only notify on rejected -> pending; already-pending resubmits would spam admins
+        if (existing.status !== "pending") {
+            void notifyAdminsPackPending({
+                name: updated.name,
+                slug: updated.slug,
+                submitterName: updated.createdBy?.name,
+                resubmission: true,
+            });
+        }
 
         return new Response(
             JSON.stringify(updated),
