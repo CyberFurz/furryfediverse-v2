@@ -38,6 +38,15 @@ export const POST: APIRoute = async ({ url, locals }) => {
             );
         }
 
+        // Revisions are submitted via /api/packs/:liveSlug/revision, and are
+        // never published on their own.
+        if (existing.revisionOfId) {
+            return new Response(
+                JSON.stringify({ error: "Pending changes are submitted from the live pack" }),
+                { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+        }
+
         // If already published (approved), allow unpublishing
         if (existing.status === "approved" && existing.publishedAt) {
             const updated = await prisma.starterPack.update({
@@ -68,7 +77,7 @@ export const POST: APIRoute = async ({ url, locals }) => {
                 },
             });
             void notifyAdminsPackPending({
-                name: updated.name,
+                name: updated.title,
                 slug: updated.slug,
                 submitterName: updated.createdBy?.name,
             });
@@ -94,7 +103,7 @@ export const POST: APIRoute = async ({ url, locals }) => {
         // Only notify on rejected -> pending; already-pending resubmits would spam admins
         if (existing.status !== "pending") {
             void notifyAdminsPackPending({
-                name: updated.name,
+                name: updated.title,
                 slug: updated.slug,
                 submitterName: updated.createdBy?.name,
                 resubmission: true,

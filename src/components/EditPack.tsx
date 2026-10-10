@@ -8,6 +8,9 @@ interface PackData {
   publishedAt: string | null;
   splash_image?: string | null;
   splash_custom?: boolean;
+  status?: string;
+  published_at?: string | null;
+  revision?: { status: string } | null;
 }
 
 const MAX_SPLASH_BYTES = 5 * 1024 * 1024;
@@ -20,7 +23,7 @@ function SplashEditor({ slug, initialImage, initialCustom }: { slug: string; ini
   const fileRef = useRef<HTMLInputElement>(null);
 
   const refresh = async () => {
-    const res = await fetch(`/api/packs/${slug}`, { headers: { Accept: "application/json" } });
+    const res = await fetch(`/api/packs/${slug}?draft=1&following=0`, { headers: { Accept: "application/json" } });
     if (res.ok) {
       const data: PackData = await res.json();
       setImage(data.splash_image ?? null);
@@ -140,6 +143,7 @@ export default function EditPack({ slug }: { slug: string }) {
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState({ title: false, description: false });
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [liveNotice, setLiveNotice] = useState<null | "new" | "draft" | "pending" | "rejected">(null);
   const [splash, setSplash] = useState<{ image: string | null; custom: boolean }>({ image: null, custom: false });
 
   const titleError = touched.title && !title.trim() ? "Title is required" : null;
@@ -150,7 +154,8 @@ export default function EditPack({ slug }: { slug: string }) {
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await fetch(`/api/packs/${slug}`, {
+        // draft=1: show pending changes (if any) rather than the live content.
+        const res = await fetch(`/api/packs/${slug}?draft=1&following=0`, {
           headers: { Accept: "application/json" },
         });
         if (!res.ok) throw new Error("Failed to load pack");
@@ -159,6 +164,11 @@ export default function EditPack({ slug }: { slug: string }) {
           setTitle(data.title);
           setDescription(data.description);
           setSplash({ image: data.splash_image ?? null, custom: !!data.splash_custom });
+          if (data.revision) {
+            setLiveNotice(data.revision.status as "draft" | "pending" | "rejected");
+          } else if (data.status === "approved" && data.published_at) {
+            setLiveNotice("new");
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -229,6 +239,15 @@ export default function EditPack({ slug }: { slug: string }) {
 
   return (
     <div className="max-w-2xl mx-auto bg-white/5 rounded-xl border border-white/10 p-6 md:p-8">
+      {liveNotice && (
+        <div className="mb-6 p-3 rounded-lg border bg-sky-500/10 border-sky-500/30 text-sky-100 text-sm">
+          {liveNotice === "new"
+            ? "This pack is live. Your edits will be saved as pending changes. The published version stays up until you submit them and they're approved."
+            : liveNotice === "pending"
+              ? "You're editing changes that are awaiting review. The published version stays up until they're approved."
+              : "You're editing your pending changes. The published version stays up until you submit them and they're approved."}
+        </div>
+      )}
       <div className="mb-6">
         <SplashEditor slug={slug} initialImage={splash.image} initialCustom={splash.custom} />
       </div>

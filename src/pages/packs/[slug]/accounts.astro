@@ -37,13 +37,23 @@ if (!user) {
             </div>
 
             <div class="py-6">
-                <div class="mb-6">
-                    <h1 class="font-bold text-2xl text-white">
-                        Manage Accounts
-                    </h1>
-                    <p class="text-white/50 text-sm mt-1">
-                        Add, remove, or reorder accounts in your starter pack
-                    </p>
+                <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <h1 class="font-bold text-2xl text-white">
+                            Manage Accounts
+                        </h1>
+                        <p class="text-white/50 text-sm mt-1">
+                            Add, remove, or reorder accounts in your starter pack
+                        </p>
+                    </div>
+                    <a
+                        href={`/packs/${slug}`}
+                        class="inline-flex items-center gap-2 shrink-0 bg-[#31dcb2] text-[#12384b] font-semibold px-5 py-2.5 rounded-lg hover:bg-[#28c4a0] transition-colors no-underline"
+                        title="Account changes are saved as you make them"
+                    >
+                        <i class="fa-solid fa-check w-4 h-4"></i>
+                        Save Changes
+                    </a>
                 </div>
 
                 <PackAccounts slug={slug} client:load />

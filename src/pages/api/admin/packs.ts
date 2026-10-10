@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { isAdmin } from "@/lib/api-helpers";
 import type { APIRoute } from "astro";
+import { applyRevision, discardRevision } from "@/lib/packs/revisions";
 import {
 	type SplashAccount,
 	getSplashImageSignature,
@@ -48,6 +49,68 @@ export const POST: APIRoute = async (context) => {
         JSON.stringify({ error: "Pack not found" }),
         { status: 404, headers: { "Content-Type": "application/json" } }
       );
+    }
+
+    // Revisions (pending edits to a live pack) have their own lifecycle:
+    // approving merges them into the live pack, deleting discards them.
+    // Audit entries are written against the live pack so history survives
+    // the revision row being removed.
+    if (pack.revisionOfId) {
+      const liveId = pack.revisionOfId;
+      switch (action) {
+        case "approve": {
+          if (pack.status !== "pending") {
+            return new Response(
+              JSON.stringify({ error: "Only submitted changes can be approved" }),
+              { status: 409, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          const live = await applyRevision(pack);
+          await writeAuditLog(liveId, session.user.id, "approve-revision", reason);
+          return new Response(
+            JSON.stringify({ success: true, data: live }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        case "reject": {
+          if (pack.status === "rejected") {
+            return new Response(
+              JSON.stringify({ error: "Changes are already rejected" }),
+              { status: 409, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          const updated = await prisma.starterPack.update({
+            where: { id: pack.id },
+            data: { status: "rejected" },
+          });
+          await writeAuditLog(liveId, session.user.id, "reject-revision", reason);
+          return new Response(
+            JSON.stringify({ success: true, data: updated }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        case "delete": {
+          if (confirm !== true) {
+            return new Response(
+              JSON.stringify({ error: "Deletion requires confirm: true" }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          await discardRevision(pack);
+          await writeAuditLog(liveId, session.user.id, "discard-revision", reason);
+          return new Response(
+            JSON.stringify({ success: true }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        case "regenerate-splash":
+          break; // handled by the shared switch below
+        default:
+          return new Response(
+            JSON.stringify({ error: "Invalid action for pending changes" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+      }
     }
 
     let result;
@@ -97,6 +160,10 @@ export const POST: APIRoute = async (context) => {
           where: { id: packId },
           data: { deletedAt: new Date(), status: "rejected", publishedAt: null },
         });
+        // Pending changes to a deleted pack are meaningless; drop them too.
+        // (Hard delete: revisionOfId is unique, so a soft-deleted revision
+        // would block a new one if the pack is restored.)
+        await prisma.starterPack.deleteMany({ where: { revisionOfId: packId } });
         await writeAuditLog(packId, session.user.id, "delete", reason);
         break;
       case "restore":

@@ -3,6 +3,7 @@ export const prerender = false;
 import type { APIRoute } from "astro";
 import { prisma } from "../../../../../lib/prisma";
 import { requireUser } from "../../../../../lib/api-helpers";
+import { getOwnerView } from "../../../../../lib/packs/revisions";
 
 export const GET: APIRoute = async ({ url, locals }) => {
     const { user, error: authError } = requireUser(locals);
@@ -37,13 +38,16 @@ export const GET: APIRoute = async ({ url, locals }) => {
             );
         }
 
+        // Review the pending revision of a live pack when one exists.
+        const view = await getOwnerView(pack);
+
         const page = parseInt(url.searchParams.get("page") || "1");
         const limit = 50;
         const skip = (page - 1) * limit;
 
         const [accounts, totalCount] = await Promise.all([
             prisma.starterPackAccount.findMany({
-                where: { starterPackId: pack.id },
+                where: { starterPackId: view.id },
                 skip,
                 take: limit,
                 include: {
@@ -66,9 +70,16 @@ export const GET: APIRoute = async ({ url, locals }) => {
                 orderBy: { createdAt: "asc" },
             }),
             prisma.starterPackAccount.count({
-                where: { starterPackId: pack.id },
+                where: { starterPackId: view.id },
             }),
         ]);
+
+        const discoverableCount = await prisma.starterPackAccount.count({
+            where: {
+                starterPackId: view.id,
+                OR: [{ linkedProfile: { isActive: true } }, { linkedProfileId: null }],
+            },
+        });
 
         const results = accounts.map((a) => ({
             id: a.id,
@@ -80,6 +91,12 @@ export const GET: APIRoute = async ({ url, locals }) => {
         return new Response(
             JSON.stringify({
                 accounts: results,
+                publishedAt: view.publishedAt?.toISOString() ?? null,
+                status: view.status,
+                isRevision: !!view.revisionOfId,
+                totalAccounts: totalCount,
+                discoverableCount,
+                hiddenCount: totalCount - discoverableCount,
                 pagination: {
                     page,
                     limit,

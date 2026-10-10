@@ -215,6 +215,12 @@ model StarterPack {
   splashImageNeedsUpdate Boolean @default(false)
   splashImageCustom     Boolean  @default(false)
   numAccounts           Int      @default(0)
+  // Pending edits to a live (approved + published) pack are stored as a
+  // separate "revision" pack that points at the live one. The live pack stays
+  // public until an admin approves the revision, which is then merged in.
+  revisionOfId          String?  @unique
+  revisionOf            StarterPack?  @relation("PackRevision", fields: [revisionOfId], references: [id], onDelete: Cascade)
+  revision              StarterPack?  @relation("PackRevision")
 
   accounts    StarterPackAccount[]
   followClicks FollowAllClick[]

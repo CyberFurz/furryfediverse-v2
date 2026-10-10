@@ -17,6 +17,18 @@ interface PackDetail {
     followingKnown?: boolean;
     splash_image?: string;
     accounts: PackAccount[];
+    // Owner-only fields
+    status?: string;
+    is_revision?: boolean;
+    revision_of?: string | null;
+    revision?: PackRevisionInfo | null;
+}
+interface PackRevisionInfo {
+    slug: string;
+    status: "draft" | "pending" | "rejected" | string;
+    submitted_at: string | null;
+    updated_at: string;
+    rejection_reason: string | null;
 }
 interface FollowAllResult {
     followed: string[] | number;
@@ -136,6 +148,70 @@ function AdminDropdown({ slug, published, publishing, onTogglePublish, deleting,
                     </button>
                 </div>
             )}
+        </div>
+    );
+}
+
+/** Owner-facing notice about pending edits to a live pack. */
+function RevisionBanner({ slug, revision, onChanged }: { slug: string; revision: PackRevisionInfo; onChanged: () => void }) {
+    const [busy, setBusy] = useState<"submit" | "discard" | null>(null);
+    const [err, setErr] = useState<string | null>(null);
+
+    const call = async (method: "POST" | "DELETE") => {
+        if (method === "DELETE" && !window.confirm("Discard your pending changes? The live pack will stay as it is.")) return;
+        setBusy(method === "POST" ? "submit" : "discard");
+        setErr(null);
+        try {
+            const res = await fetch(`/api/packs/${slug}/revision`, { method });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Request failed");
+            onChanged();
+        } catch (e) {
+            setErr(e instanceof Error ? e.message : "Request failed");
+        } finally {
+            setBusy(null);
+        }
+    };
+
+    const tone = revision.status === "rejected"
+        ? "bg-red-500/10 border-red-500/30"
+        : revision.status === "pending"
+            ? "bg-amber-500/10 border-amber-500/30"
+            : "bg-sky-500/10 border-sky-500/30";
+    const title = revision.status === "rejected"
+        ? "Your changes were not approved"
+        : revision.status === "pending"
+            ? "Your changes are awaiting review"
+            : "You have unsubmitted changes";
+    const body = revision.status === "rejected"
+        ? "The live pack is unchanged. Update your changes and resubmit, or discard them."
+        : revision.status === "pending"
+            ? "The live pack below stays published until an admin approves your changes. You can keep editing in the meantime."
+            : "Your edits are saved as a draft. The live pack below is unchanged until you submit them and they're approved.";
+    const btn = "px-3 py-1.5 rounded-lg text-sm transition-colors no-underline disabled:opacity-40";
+    const spin = <FontAwesomeIcon icon={faSpinner} spin className="w-3.5 h-3.5" />;
+
+    return (
+        <div className={`p-4 rounded-xl border ${tone}`}>
+            <p className="text-white font-semibold text-sm">{title}</p>
+            <p className="text-white/70 text-sm mt-1">{body}</p>
+            {revision.status === "rejected" && revision.rejection_reason && (
+                <p className="text-red-300 text-sm mt-2">Reason: {revision.rejection_reason}</p>
+            )}
+            <div className="flex flex-wrap gap-2 mt-3">
+                <a href={`/packs/${revision.slug}`} className={`${btn} bg-white/10 text-white hover:bg-white/20`}>Preview changes</a>
+                <a href={`/packs/${slug}/edit`} className={`${btn} bg-white/10 text-white hover:bg-white/20`}>Edit details</a>
+                <a href={`/packs/${slug}/accounts`} className={`${btn} bg-white/10 text-white hover:bg-white/20`}>Edit accounts</a>
+                {revision.status !== "pending" && (
+                    <button onClick={() => call("POST")} disabled={!!busy} className={`${btn} bg-[#31dcb2] text-[#12384b] font-semibold hover:bg-[#28c4a0]`}>
+                        {busy === "submit" ? <span className="flex items-center gap-2">{spin} Submitting...</span> : revision.status === "rejected" ? "Resubmit for review" : "Submit for review"}
+                    </button>
+                )}
+                <button onClick={() => call("DELETE")} disabled={!!busy} className={`${btn} text-red-300 hover:bg-red-500/10`}>
+                    {busy === "discard" ? <span className="flex items-center gap-2">{spin} Discarding...</span> : "Discard changes"}
+                </button>
+            </div>
+            {err && <p className="text-red-400 text-xs mt-2">{err}</p>}
         </div>
     );
 }
@@ -279,6 +355,21 @@ export default function SharePack({ slug, user = null, hasLinkedProfile = false 
 
     return (
         <div className="space-y-8">
+            {/* Owner notices about pending edits */}
+            {isOwner && pack.is_revision && pack.revision_of && (
+                <div className="p-4 rounded-xl border bg-sky-500/10 border-sky-500/30 flex flex-wrap items-center gap-3">
+                    <p className="text-white/80 text-sm flex-1 min-w-[200px]">
+                        You're previewing your pending changes. Visitors still see the live version.
+                    </p>
+                    <a href={`/packs/${pack.revision_of}`} className="px-3 py-1.5 rounded-lg text-sm bg-white/10 text-white hover:bg-white/20 no-underline">
+                        Back to live pack
+                    </a>
+                </div>
+            )}
+            {isOwner && pack.revision && (
+                <RevisionBanner slug={slug} revision={pack.revision} onChanged={fetchPack} />
+            )}
+
             {/* Hero: splash with header blended over its lower portion */}
             <div className="relative">
                 <div className="relative aspect-[1200/630] rounded-t-xl overflow-hidden">
@@ -294,8 +385,10 @@ export default function SharePack({ slug, user = null, hasLinkedProfile = false 
             <div className="relative -mt-20 sm:-mt-28 md:-mt-36 px-4 sm:px-6 md:px-8">
                 <div className="flex items-center gap-3 mb-2">
                     <h1 className="text-2xl md:text-4xl font-bold text-white drop-shadow-lg">{pack.title}</h1>
-                    {!isPublished && <span className="shrink-0 text-xs px-2 py-0.5 rounded-full border bg-amber-500/20 text-amber-300 border-amber-500/50">Draft</span>}
-                    {isOwner && (
+                    {pack.is_revision ? (
+                        <span className="shrink-0 text-xs px-2 py-0.5 rounded-full border bg-sky-500/20 text-sky-300 border-sky-500/50">Pending changes</span>
+                    ) : !isPublished && <span className="shrink-0 text-xs px-2 py-0.5 rounded-full border bg-amber-500/20 text-amber-300 border-amber-500/50">Draft</span>}
+                    {isOwner && !pack.is_revision && (
                         <div className="ml-auto">
                             <AdminDropdown slug={slug} published={isPublished} publishing={publishing} onTogglePublish={handleTogglePublish} deleting={deleting} onDelete={handleDelete} />
                         </div>

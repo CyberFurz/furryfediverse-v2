@@ -19,7 +19,9 @@ const filterParam = new URL(Astro.request.url).searchParams.get("filter") || "";
 const pageParam = parseInt(new URL(Astro.request.url).searchParams.get("page") || "1");
 const limit = 20;
 
-const where: any = {};
+// Hide unsubmitted revisions (owners still editing changes to a live pack);
+// they only show up here once submitted for review.
+const where: any = { NOT: { revisionOfId: { not: null }, status: "draft" } };
 
 // Status filter maps to the pack status column; "deleted" is the
 // soft-delete state, so it filters on deletedAt instead.
@@ -47,12 +49,13 @@ const [packs, total] = await Promise.all([
 		include: {
 			createdBy: { select: { id: true, name: true } },
 			_count: { select: { accounts: true } },
+			revisionOf: { select: { slug: true, title: true } },
 		},
 	}),
 	prisma.starterPack.count({ where }),
 ]);
 
-const totalPacks = await prisma.starterPack.count();
+const totalPacks = await prisma.starterPack.count({ where: { revisionOfId: null } });
 const approvedPacks = await prisma.starterPack.count({
 	where: { status: "approved", publishedAt: { not: null }, deletedAt: null },
 });
@@ -190,6 +193,12 @@ function getStatus(pack: { status: string; deletedAt: Date | null }): string {
 										<p class="text-white font-medium truncate max-w-[200px]" title={pack.title}>
 											{pack.title}
 										</p>
+										{pack.revisionOf && (
+											<p class="text-xs text-sky-300 truncate max-w-[200px]" title={`Changes to live pack "${pack.revisionOf.title}"`}>
+												<i class="fa-solid fa-code-branch w-3 h-3"></i> Update to{" "}
+												<a href={`/packs/${pack.revisionOf.slug}`} target="_blank" class="underline text-sky-300">{pack.revisionOf.title}</a>
+											</p>
+										)}
 									</td>
 									<td class="px-4 py-3">
 										<code class="block text-white/60 text-xs font-mono truncate max-w-[160px]" title={pack.slug}>{pack.slug}</code>
@@ -250,7 +259,7 @@ function getStatus(pack: { status: string; deletedAt: Date | null }): string {
 													</button>
 												</>
 											)}
-											{status !== "deleted" && status !== "rejected" && (
+											{status !== "deleted" && status !== "rejected" && !pack.revisionOf && (
 												<>
 													<a
 														href={`/packs/${pack.slug}/edit`}

@@ -6,6 +6,7 @@ import { requireUser, slugFrom, isAdmin, validatePackTextField } from "../../../
 import { createMegalodonClient, type PlatformKey } from "../../../../lib/social/providers";
 import { fetchFollowingHandles } from "../../../../lib/social/following";
 import { buildHandle, canonicalHandle } from "../../../../lib/social/handles";
+import { discardRevision, getEditablePack, latestRevisionRejection } from "../../../../lib/packs/revisions";
 
 const SITE_URL = process.env.SITE_URL || "https://furryfediverse.org";
 
@@ -233,6 +234,41 @@ export const GET: APIRoute = async ({ url, request, locals }) => {
             }
         }
 
+        // Owners get info about pending edits (a revision of a live pack).
+        // With ?draft=1 the revision's content is returned instead of the
+        // live content, for the edit/manage pages.
+        const viewerIsOwner = !!locals?.user && locals.user.id === pack.createdById;
+        let view: typeof pack = pack;
+        let revisionInfo: Record<string, unknown> | null = null;
+        if (viewerIsOwner && !pack.revisionOfId) {
+            const revision = await prisma.starterPack.findFirst({
+                where: { revisionOfId: pack.id, deletedAt: null },
+                include: packDetailInclude,
+            });
+            if (revision) {
+                revisionInfo = {
+                    slug: revision.slug,
+                    status: revision.status,
+                    submitted_at: revision.submittedAt?.toISOString() || null,
+                    updated_at: revision.updatedAt.toISOString(),
+                    rejection_reason:
+                        revision.status === "rejected" ? await latestRevisionRejection(pack.id) : null,
+                };
+                if (url.searchParams.get("draft") === "1") view = revision;
+            }
+        }
+        const ownerExtras = viewerIsOwner
+            ? {
+                status: pack.status,
+                is_revision: !!pack.revisionOfId,
+                revision_of: pack.revisionOfId
+                    ? (await prisma.starterPack.findUnique({ where: { id: pack.revisionOfId }, select: { slug: true } }))?.slug ?? null
+                    : null,
+                revision: revisionInfo,
+                showing_draft: view !== pack,
+            }
+            : {};
+
         const format = getPreferredFormat(request);
         const baseUrl = `${SITE_URL}/api/packs/${pack.slug}`;
 
@@ -277,7 +313,7 @@ export const GET: APIRoute = async ({ url, request, locals }) => {
             }
         }
 
-        return new Response(JSON.stringify(buildJsonBody(pack, { followingKnown, followingSet })), {
+        return new Response(JSON.stringify({ ...buildJsonBody(view, { followingKnown, followingSet }), ...ownerExtras }), {
             status: 200,
             headers: { "Content-Type": "application/json" },
         });
@@ -354,16 +390,15 @@ export const PUT: APIRoute = async ({ request, url, locals }) => {
             );
         }
 
-        // Editing an approved pack must trigger re-review: reset the
-        // status to pending and unpublish, so the change can't slip out
-        // under the previously-approved content.
-        const wasApproved = existing.status === "approved" && existing.publishedAt;
+        // Edits to a live pack go to its revision (created on first edit),
+        // so the published version stays up until the changes are approved.
+        const target = await getEditablePack(existing);
         const updated = await prisma.starterPack.update({
-            where: { id: existing.id },
+            where: { id: target.id },
             data: {
                 ...data,
-                ...(wasApproved
-                    ? { status: "pending", publishedAt: null }
+                ...(data.title !== undefined && data.title !== target.title && !target.splashImageCustom
+                    ? { splashImageNeedsUpdate: true }
                     : {}),
             },
             include: {
@@ -416,10 +451,22 @@ export const DELETE: APIRoute = async ({ url, locals }) => {
             );
         }
 
+        // Deleting a revision just discards the pending changes.
+        if (existing.revisionOfId) {
+            await discardRevision(existing);
+            return new Response(
+                JSON.stringify({ success: true }),
+                { status: 200, headers: { "Content-Type": "application/json" } }
+            );
+        }
+
         await prisma.starterPack.update({
             where: { id: existing.id },
             data: { deletedAt: new Date() },
         });
+        // Drop any pending changes. Hard delete: revisionOfId is unique, so a
+        // soft-deleted revision would block a new one if the pack is restored.
+        await prisma.starterPack.deleteMany({ where: { revisionOfId: existing.id } });
 
         return new Response(
             JSON.stringify({ success: true }),

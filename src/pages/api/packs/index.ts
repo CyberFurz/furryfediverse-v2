@@ -16,7 +16,9 @@ export const GET: APIRoute = async ({ url, locals }) => {
         const limit = 30;
         const skip = (page - 1) * limit;
 
-        const where: any = { deletedAt: null };
+        // Revisions (pending edits of a live pack) are never listed on their
+        // own; owners reach them through the live pack.
+        const where: any = { deletedAt: null, revisionOfId: null };
 
         if (tab === "community") {
             where.status = "approved";

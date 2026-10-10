@@ -9,6 +9,7 @@ import {
     searchRemoteAccounts,
     type RemoteAccount,
 } from "../../../../../lib/social/remote-accounts";
+import { getEditablePack, getOwnerView } from "../../../../../lib/packs/revisions";
 import { normalizeHandle, isValidHandle, toBridgedBlueskyHandle, MAX_HANDLE_LENGTH } from "../../../../../lib/social/handles";
 
 export const GET: APIRoute = async ({ url, locals }) => {
@@ -42,6 +43,9 @@ export const GET: APIRoute = async ({ url, locals }) => {
             );
         }
 
+        // Show the pending revision's accounts when one exists.
+        const view = await getOwnerView(pack);
+
         const q = url.searchParams.get("q") || "";
         const page = parseInt(url.searchParams.get("page") || "1");
         const limit = 50;
@@ -67,7 +71,7 @@ export const GET: APIRoute = async ({ url, locals }) => {
             prisma.linkedProfile.count({ where }),
             // Always fetch handle-based accounts in this pack
             prisma.starterPackAccount.findMany({
-                where: { starterPackId: pack.id, linkedProfileId: null, handle: { not: null } },
+                where: { starterPackId: view.id, linkedProfileId: null, handle: { not: null } },
                 select: { id: true, handle: true, displayName: true, avatarUrl: true },
                 orderBy: { createdAt: "asc" },
             }),
@@ -96,7 +100,7 @@ export const GET: APIRoute = async ({ url, locals }) => {
 
         // Annotate profiles with inStarterPack
         const existingAccountIds = await prisma.starterPackAccount.findMany({
-            where: { starterPackId: pack.id, linkedProfileId: { not: null } },
+            where: { starterPackId: view.id, linkedProfileId: { not: null } },
             select: { linkedProfileId: true },
         });
         const existingSet = new Set(existingAccountIds.map((a) => a.linkedProfileId));
@@ -129,7 +133,7 @@ export const GET: APIRoute = async ({ url, locals }) => {
                 page,
                 limit,
                 totalPages: Math.ceil(totalCount / limit),
-                packAccountCount: pack.numAccounts,
+                packAccountCount: view.numAccounts,
                 scopeStatus: await getRemoteLookupScopeStatus(user.id),
             }),
             { status: 200, headers: { "Content-Type": "application/json" } }
@@ -183,6 +187,10 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
             );
         }
 
+        // Edits to a live pack go to its revision so the published version
+        // stays up until the changes are approved.
+        const target = await getEditablePack(pack);
+
         const body = await request.json();
         const { linkedProfileId, handle, displayName, avatarUrl, profileUrl } = body;
 
@@ -226,7 +234,7 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
             // add accounts that have no LinkedProfile on this site (e.g.
             // remote accounts found via @user@domain lookup).
             const existing = await prisma.starterPackAccount.findFirst({
-                where: { starterPackId: pack.id, handle: normalizedHandle },
+                where: { starterPackId: target.id, handle: normalizedHandle },
             });
             if (existing) {
                 await prisma.starterPackAccount.delete({ where: { id: existing.id } });
@@ -234,7 +242,7 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
             } else {
                 // Check max accounts limit
                 const accountCount = await prisma.starterPackAccount.count({
-                    where: { starterPackId: pack.id },
+                    where: { starterPackId: target.id },
                 });
 
                 if (accountCount >= 150) {
@@ -246,7 +254,7 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
 
                 await prisma.starterPackAccount.create({
                     data: {
-                        starterPackId: pack.id,
+                        starterPackId: target.id,
                         handle: normalizedHandle,
                         createdById: user.id,
                         // Optional display metadata captured from the remote
@@ -265,7 +273,7 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
             const existing = await prisma.starterPackAccount.findUnique({
                 where: {
                     starterPackId_linkedProfileId: {
-                        starterPackId: pack.id,
+                        starterPackId: target.id,
                         linkedProfileId,
                     },
                 },
@@ -280,7 +288,7 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
             } else {
                 // Check max accounts limit
                 const accountCount = await prisma.starterPackAccount.count({
-                    where: { starterPackId: pack.id },
+                    where: { starterPackId: target.id },
                 });
 
                 if (accountCount >= 150) {
@@ -313,7 +321,7 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
                 // Add to pack
                 await prisma.starterPackAccount.create({
                     data: {
-                        starterPackId: pack.id,
+                        starterPackId: target.id,
                         linkedProfileId,
                         createdById: user.id,
                     },
@@ -324,15 +332,13 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
 
         // Update numAccounts atomically (+/- 1) instead of count-then-write,
         // so concurrent toggles can't clobber the counter with a stale value.
-        // Changing the account list of an approved pack must trigger
-        // re-review, same as editing metadata.
+        // Live packs are never edited in place: `target` is their revision.
         const updatedPack = await prisma.starterPack.update({
-            where: { id: pack.id },
+            where: { id: target.id },
             data: {
                 numAccounts: { increment: inStarterPack ? 1 : -1 },
-                ...(pack.status === "approved" && pack.publishedAt
-                    ? { status: "pending", publishedAt: null }
-                    : {}),
+                // Account changes affect the generated cover image.
+                ...(target.splashImageCustom ? {} : { splashImageNeedsUpdate: true }),
             },
         });
 

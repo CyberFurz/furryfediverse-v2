@@ -8,6 +8,7 @@ import {
 	getSplashImageSignature,
 	renderSplashImage,
 } from "@/lib/packs/splash-image";
+import { getEditablePack } from "@/lib/packs/revisions";
 
 /** Supported import file types. */
 type FileType = "csv" | "json";
@@ -183,6 +184,9 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
             );
         }
 
+        // Imports into a live pack go to its revision.
+        const target = await getEditablePack(pack);
+
         // Parse multipart form data
         const formData = await request.formData();
         const csvFile = formData.get("csv");
@@ -274,12 +278,12 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
 
         // Check current account count
         const currentCount = await prisma.starterPackAccount.count({
-            where: { starterPackId: pack.id },
+            where: { starterPackId: target.id },
         });
 
         // Check for existing handle-based accounts in this pack
         const existingHandleAccounts = await prisma.starterPackAccount.findMany({
-            where: { starterPackId: pack.id, handle: { not: null } },
+            where: { starterPackId: target.id, handle: { not: null } },
             select: { handle: true },
         });
         const existingHandleSet = new Set(existingHandleAccounts.map((a) => a.handle));
@@ -304,12 +308,12 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
             handle?: string;
         }> = [
             ...profileIdsToAdd.map((linkedProfileId) => ({
-                starterPackId: pack.id,
+                starterPackId: target.id,
                 linkedProfileId,
                 createdById: user.id,
             })),
             ...handlesToAdd.map((h) => ({
-                starterPackId: pack.id,
+                starterPackId: target.id,
                 handle: `@${h}`,
                 createdById: user.id,
             })),
@@ -325,16 +329,16 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
 
         // Update numAccounts
         const discoverableCount = await prisma.starterPackAccount.count({
-            where: { starterPackId: pack.id },
+            where: { starterPackId: target.id },
         });
         await prisma.starterPack.update({
-            where: { id: pack.id },
+            where: { id: target.id },
             data: { numAccounts: discoverableCount },
         });
 
         // Auto-regenerate splash image after import
         const updatedPack = await prisma.starterPack.findFirst({
-            where: { id: pack.id },
+            where: { id: target.id },
             include: {
                 accounts: {
                     include: {
@@ -364,21 +368,21 @@ export const POST: APIRoute = async ({ request, locals, params }) => {
             }
 
             await renderSplashImage(
-                { title: pack.title, slug: pack.slug, description: pack.description },
+                { title: target.title, slug: target.slug, description: target.description },
                 crawledAccounts,
                 uncrawledHandles,
             );
 
             const newSignature = getSplashImageSignature(
-                { title: pack.title },
+                { title: target.title },
                 crawledAccounts,
                 uncrawledHandles,
             );
 
             await prisma.starterPack.update({
-                where: { id: pack.id },
+                where: { id: target.id },
                 data: {
-                    splashImage: `splash/${pack.slug}.png`,
+                    splashImage: `splash/${target.slug}.png`,
                     splashImageSignature: newSignature,
                     splashImageUpdatedAt: new Date(),
                     splashImageNeedsUpdate: false,

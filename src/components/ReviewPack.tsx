@@ -19,6 +19,8 @@ interface ReviewResponse {
   totalAccounts: number;
   discoverableCount: number;
   hiddenCount: number;
+  status?: string;
+  isRevision?: boolean;
   pagination: { page: number; totalCount: number; totalPages: number };
 }
 
@@ -101,6 +103,8 @@ export default function ReviewPack({ slug }: { slug: string }) {
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
 
+  const [isRevision, setIsRevision] = useState(false);
+  const [revisionStatus, setRevisionStatus] = useState<string | null>(null);
   const isPublished = publishedAt !== null;
 
   const fetchReview = useCallback(async (pg: number, append: boolean) => {
@@ -121,7 +125,9 @@ export default function ReviewPack({ slug }: { slug: string }) {
       } else {
         setAccounts(data.accounts);
       }
-      setPublishedAt(data.publishedAt);
+      setPublishedAt(data.publishedAt ?? null);
+      setIsRevision(!!data.isRevision);
+      setRevisionStatus(data.isRevision ? data.status ?? null : null);
       setTotalAccounts(data.totalAccounts);
       setDiscoverableCount(data.discoverableCount);
       setHiddenCount(data.hiddenCount);
@@ -144,32 +150,32 @@ export default function ReviewPack({ slug }: { slug: string }) {
     }
   }, [page, totalPages, loadingMore, fetchReview]);
 
-  // Toggle publish/unpublish
+  // Toggle publish/unpublish. For a live pack with pending changes, this
+  // submits the changes for review instead (the live pack stays up).
   const handleTogglePublish = useCallback(async () => {
     setPublishing(true);
     setPublishError(null);
 
     try {
-      const res = await fetch(`/api/packs/${slug}/publish`, { method: "POST" });
+      const endpoint = isRevision ? `/api/packs/${slug}/revision` : `/api/packs/${slug}/publish`;
+      const res = await fetch(endpoint, { method: "POST" });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to toggle publish");
+        throw new Error(data.error || (isRevision ? "Failed to submit changes" : "Failed to toggle publish"));
       }
       const result = await res.json();
+      // Return to the pack page after submitting changes or publishing.
+      if (isRevision || result.publishedAt || result.status === "pending") {
+        window.location.href = `/packs/${slug}`;
+        return;
+      }
       setPublishedAt(result.publishedAt ?? null);
     } catch (err) {
       setPublishError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setPublishing(false);
     }
-  }, [slug]);
-
-  // After publish/unpublish, redirect on first publish
-  useEffect(() => {
-    if (!loading && isPublished && !publishing && !publishError && accounts.length > 0) {
-      window.location.href = `/packs/${slug}`;
-    }
-  }, [isPublished, publishing, publishError, loading, accounts.length, slug]);
+  }, [slug, isRevision]);
 
   const spin = (
     <FontAwesomeIcon icon={faSpinner} spin className="w-4 h-4" />
@@ -259,19 +265,27 @@ export default function ReviewPack({ slug }: { slug: string }) {
         <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">{publishError}</div>
       )}
 
+      {isRevision && (
+        <div className="p-3 rounded-lg border bg-sky-500/10 border-sky-500/30 text-sky-100 text-sm">
+          You're reviewing pending changes to a live pack. The published version stays up until these changes are approved.
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex items-center gap-3 pt-2">
         {hasAccounts && (
           <button
             onClick={handleTogglePublish}
-            disabled={publishing}
+            disabled={publishing || (isRevision && revisionStatus === "pending")}
             className="flex-1 py-3 bg-[#31dcb2] text-[#12384b] font-semibold rounded-lg hover:bg-[#28c4a0] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-base"
           >
             {publishing ? (
               <span className="flex items-center justify-center gap-2">
                 {spin}
-                {isPublished ? "Unpublishing..." : "Publishing..."}
+                {isRevision ? "Submitting..." : isPublished ? "Unpublishing..." : "Publishing..."}
               </span>
+            ) : isRevision ? (
+              revisionStatus === "pending" ? "Changes Awaiting Review" : "Submit Changes for Review"
             ) : isPublished ? (
               "Unpublish"
             ) : (

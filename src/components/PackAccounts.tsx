@@ -216,6 +216,7 @@ export default function PackAccounts({ slug }: { slug: string }) {
   const [handleAccounts, setHandleAccounts] = useState<HandleAccount[]>([]);
   const [remoteAccounts, setRemoteAccounts] = useState<RemoteAccount[]>([]);
   const [toggling, setToggling] = useState<Record<string, boolean>>({});
+  const [editingLive, setEditingLive] = useState(false);
   const [statuses, setStatuses] = useState<Record<string, "added" | "removed">>({});
   const [scopeStatus, setScopeStatus] = useState<RemoteLookupScopeStatus | null | undefined>(undefined);
   const [notice, setNotice] = useState<string | null>(null);
@@ -236,11 +237,12 @@ export default function PackAccounts({ slug }: { slug: string }) {
   const refreshPackData = useCallback(async () => {
     try {
       const [packRes, acctsRes] = await Promise.all([
-        fetch(`/api/packs/${slug}?following=0`),
+        fetch(`/api/packs/${slug}?following=0&draft=1`),
         fetch(`/api/packs/${slug}/accounts`),
       ]);
       const packData = await packRes.json();
       if (packData.numAccounts !== undefined) setTotalInPack(packData.numAccounts);
+      setEditingLive(!!packData.revision || (packData.status === "approved" && !!packData.published_at));
       const acctsData = await acctsRes.json();
       setHandleAccounts(acctsData.handleAccounts || []);
       if ("scopeStatus" in acctsData) setScopeStatus(acctsData.scopeStatus);
@@ -384,6 +386,12 @@ export default function PackAccounts({ slug }: { slug: string }) {
         )}
       </div>
 
+      {editingLive && (
+        <div className="p-3 rounded-lg border bg-sky-500/10 border-sky-500/30 text-sky-100 text-sm">
+          This pack is live. Account changes are saved as pending changes and won't affect the published pack until
+          you <a href={`/packs/${slug}`} className="underline text-sky-200">submit them for review</a> and they're approved.
+        </div>
+      )}
       {notice && <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-300 text-sm">{notice}</div>}
       {scopeStatus !== undefined && <ScopeBanner status={scopeStatus} slug={slug} />}
 

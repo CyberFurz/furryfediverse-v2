@@ -10,6 +10,7 @@ import {
 	saveCustomSplashImage,
 	CUSTOM_SPLASH_MAX_BYTES,
 } from "../../../../lib/packs/splash-image";
+import { getEditablePack } from "../../../../lib/packs/revisions";
 
 /**
  * POST /api/packs/:slug/splash
@@ -59,11 +60,27 @@ export const POST: APIRoute = async ({ url, locals }) => {
 			);
 		}
 
+		// For a live pack, regenerate the revision's image, not the live one.
+		const editable = await getEditablePack(pack);
+		const target =
+			editable.id === pack.id
+				? pack
+				: await prisma.starterPack.findUniqueOrThrow({
+					where: { id: editable.id },
+					include: {
+						accounts: {
+							include: {
+								linkedProfile: { select: { avatarUrl: true, acct: true, displayName: true } },
+							},
+						},
+					},
+				});
+
 		// Separate accounts into crawled (have linked profile data) and uncrawled (handle only)
 		const crawledAccounts: SplashAccount[] = [];
 		const uncrawledHandles: string[] = [];
 
-		for (const a of pack.accounts) {
+		for (const a of target.accounts) {
 			if (a.linkedProfile) {
 				crawledAccounts.push({
 					displayName: a.linkedProfile.displayName ?? a.linkedProfile.acct,
@@ -76,15 +93,15 @@ export const POST: APIRoute = async ({ url, locals }) => {
 		}
 
 		const newSignature = getSplashImageSignature(
-			{ title: pack.title },
+			{ title: target.title },
 			crawledAccounts,
 			uncrawledHandles,
 		);
 
 		if (
-			newSignature === pack.splashImageSignature &&
-			!pack.splashImageNeedsUpdate &&
-			!pack.splashImageCustom
+			newSignature === target.splashImageSignature &&
+			!target.splashImageNeedsUpdate &&
+			!target.splashImageCustom
 		) {
 			return new Response(
 				JSON.stringify({
@@ -97,16 +114,16 @@ export const POST: APIRoute = async ({ url, locals }) => {
 		}
 
 		await renderSplashImage(
-			{ title: pack.title, slug: pack.slug },
+			{ title: target.title, slug: target.slug, description: target.description },
 			crawledAccounts,
 			uncrawledHandles,
 		);
 
 		// Persist render metadata
 		await prisma.starterPack.update({
-			where: { id: pack.id },
+			where: { id: target.id },
 			data: {
-				splashImage: `splash/${pack.slug}.png`,
+				splashImage: `splash/${target.slug}.png`,
 				splashImageSignature: newSignature,
 				splashImageUpdatedAt: new Date(),
 				splashImageNeedsUpdate: false,
@@ -164,6 +181,11 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
 			return json({ error: "You can only manage your own starter packs" }, 403);
 		}
 
+		// Uploads for a live pack go to its revision.
+		const target = await getEditablePack(
+			(await prisma.starterPack.findUniqueOrThrow({ where: { id: pack.id } })),
+		);
+
 		const formData = await request.formData();
 		const file = formData.get("image");
 		if (!file || !(file instanceof File)) {
@@ -177,15 +199,15 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
 		}
 
 		try {
-			await saveCustomSplashImage(pack.slug, Buffer.from(await file.arrayBuffer()));
+			await saveCustomSplashImage(target.slug, Buffer.from(await file.arrayBuffer()));
 		} catch {
 			return json({ error: "Could not process image" }, 400);
 		}
 
 		const updated = await prisma.starterPack.update({
-			where: { id: pack.id },
+			where: { id: target.id },
 			data: {
-				splashImage: `splash/${pack.slug}.png`,
+				splashImage: `splash/${target.slug}.png`,
 				splashImageCustom: true,
 				splashImageNeedsUpdate: false,
 				splashImageUpdatedAt: new Date(),
