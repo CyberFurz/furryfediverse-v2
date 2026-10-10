@@ -15,7 +15,14 @@ const GRADIENT_START = "#005458";
 const GRADIENT_END = "#0A2B49";
 const PLACEHOLDER_FILL = "#1a6868";
 
-const FONT_FAMILY = "Inter, sans-serif";
+const FONT_FAMILY = "Inter, DejaVu Sans, sans-serif";
+
+/**
+ * Splash images live in the persistent `storage/` volume (not `public/`,
+ * which is only served at build time in production) and are served by
+ * `src/pages/splash/[file].ts`.
+ */
+export const SPLASH_DIR = path.resolve(process.cwd(), "storage", "splash");
 
 
 /* ------------------------------------------------------------------ */
@@ -531,7 +538,7 @@ export async function renderSplashImage(
 
 	/* ------ Rasterize & save ------ */
 
-	const outputDir = path.resolve(process.cwd(), "public", "splash");
+	const outputDir = SPLASH_DIR;
 	await fs.mkdir(outputDir, { recursive: true });
 
 	const outputPath = path.join(outputDir, `${pack.slug}.png`);
@@ -555,7 +562,7 @@ export const CUSTOM_SPLASH_MAX_BYTES = 5 * 1024 * 1024;
  * Throws if the buffer is not a decodable image.
  */
 export async function saveCustomSplashImage(slug: string, input: Buffer): Promise<void> {
-	const outputDir = path.resolve(process.cwd(), "public", "splash");
+	const outputDir = SPLASH_DIR;
 	await fs.mkdir(outputDir, { recursive: true });
 	const outputPath = path.join(outputDir, `${slug}.png`);
 

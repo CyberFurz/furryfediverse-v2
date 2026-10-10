@@ -15,7 +15,7 @@ import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import type { StarterPack } from "../../../generated/prisma/client";
 
-const SPLASH_DIR = path.resolve(process.cwd(), "public", "splash");
+import { SPLASH_DIR } from "./splash-image";
 
 /** A live pack is publicly visible; edits to it must go through a revision. */
 export function isLivePack(pack: Pick<StarterPack, "status" | "publishedAt">): boolean {
