@@ -1,6 +1,7 @@
 ---
 export const prerender = false;
 import Layout from "../../layouts/Layout.astro";
+import ScopeDisclosure from "../../components/ScopeDisclosure.astro";
 
 const user = Astro.locals.user;
 
@@ -149,6 +150,7 @@ const providers = [
 							</div>
 						</div>
 					</div>
+					<ScopeDisclosure selectId="platform" />
 					<button
 						type="submit"
 						id="link-btn"
@@ -314,6 +316,7 @@ const providers = [
 				isActive: boolean;
 				isPrimaryNsfw: boolean;
 				isPrimaryProfile: boolean;
+				missingScopes: Array<{ scope: string; label: string; purpose: string }>;
 				hashtags: Array<{
 					id: string;
 					tag: string;
@@ -346,6 +349,27 @@ const providers = [
 						.map((h) => `<span class="hashtag-chip inline-flex items-center gap-1 bg-[#31dcb2]/10 text-[#31dcb2] text-xs px-2 py-1 rounded-full cursor-pointer hover:bg-red-500/20 hover:text-red-300 transition-colors" data-tag-id="${escapeHtml(h.id)}" data-profile-id="${escapeHtml(a.id)}">#${escapeHtml(h.normalizedTag)}</span>`)
 						.join("");
 					const lastSynced = escapeHtml(formatLastSynced(a.lastSyncedAt));
+					const missing = a.missingScopes ?? [];
+					const scopeHtml = missing.length === 0 ? "" : `
+						<div class="mt-3 bg-amber-500/10 border border-amber-400/40 rounded-lg p-3">
+							<p class="text-amber-200 text-sm font-semibold mb-1">Action needed: re-authorize to use starter packs</p>
+							<p class="text-amber-100/80 text-xs mb-2">
+								We've added starter pack features that need a few more permissions from your server.
+								Your account still works for the directory, but until you re-authorize, these won't work:
+							</p>
+							<ul class="space-y-2 mb-3">
+								${missing.map((m) => `
+									<li class="text-xs">
+										<span class="text-white font-semibold">${escapeHtml(m.label)}</span>
+										<code class="ml-1 text-[10px] text-white/50 bg-white/10 px-1 py-0.5 rounded">${escapeHtml(m.scope)}</code>
+										<p class="text-white/70 mt-0.5">${escapeHtml(m.purpose)}</p>
+									</li>`).join("")}
+							</ul>
+							<p class="text-white/50 text-xs mb-3">
+								You'll be sent to ${escapeHtml(a.instanceDomain)} to approve, then brought back here. We never post, read your messages, or change your profile.
+							</p>
+							<button class="reauthorize-btn text-xs bg-[#31dcb2] text-[#12384b] font-semibold hover:bg-[#28c4a0] px-3 py-1.5 rounded-lg transition-colors" data-id="${escapeHtml(a.id)}">Re-authorize on ${escapeHtml(a.instanceDomain)}</button>
+						</div>`;
 
 					return `
 					<div class="bg-white/5 rounded-lg p-4 border border-white/10" data-id="${escapeHtml(a.id)}">
@@ -366,6 +390,7 @@ const providers = [
 								<button class="unlink-btn w-full min-w-0 whitespace-normal break-words text-center leading-tight text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 px-3 py-1.5 rounded-lg transition-colors border border-red-500/30" data-id="${escapeHtml(a.id)}">Unlink</button>
 							</div>
 						</div>
+						${scopeHtml}
 						<div class="mt-3 pt-3 border-t border-white/10">
 							<p class="text-white/60 text-xs mb-2">Searchable Tags <span class="text-white/40">(click to remove)</span></p>
 							<div class="flex flex-wrap gap-2 mb-2 hashtag-chips" data-id="${escapeHtml(a.id)}">
@@ -445,6 +470,33 @@ const providers = [
 		const hashtagChip = target.closest(
 			".hashtag-chip",
 		) as HTMLElement | null;
+		const reauthorizeBtn = target.closest(
+			".reauthorize-btn",
+		) as HTMLButtonElement | null;
+
+		if (reauthorizeBtn) {
+			reauthorizeBtn.disabled = true;
+			reauthorizeBtn.textContent = "Redirecting...";
+			try {
+				const res = await fetch("/api/auth/link/start", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						flow: "reauthorize",
+						linkedProfileId: reauthorizeBtn.dataset.id,
+						returnTo: "/auth/links",
+					}),
+				});
+				const data = await res.json();
+				if (!res.ok) throw new Error(data.error || "Failed to start re-authorization");
+				window.location.href = data.authUrl;
+			} catch (error: unknown) {
+				showMsg(error instanceof Error ? error.message : "Failed to start re-authorization", "error");
+				reauthorizeBtn.disabled = false;
+				reauthorizeBtn.textContent = "Re-authorize";
+			}
+			return;
+		}
 
 		if (toggleNsfwBtn) {
 			const id = toggleNsfwBtn.dataset.id!;
@@ -578,7 +630,11 @@ const providers = [
 	const urlParams = new URLSearchParams(window.location.search);
 	const error = urlParams.get("error");
 	const success = urlParams.get("success");
-	if (error) showMsg(`Linking failed: ${error}`, "error");
+	if (error === "reauthorize_account_mismatch")
+		showMsg("Re-authorization failed: you approved a different account than the one linked here. Please sign in as that account on your server and try again.", "error");
+	else if (error) showMsg(`Linking failed: ${error}`, "error");
+	if (success === "reauthorized")
+		showMsg("Permissions updated! Starter pack search and Follow all are now enabled for this account.", "success");
 	if (success === "linked")
 		showMsg("Account linked successfully!", "success");
 

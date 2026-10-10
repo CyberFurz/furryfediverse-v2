@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSpinner, faEllipsisVertical, faUserPlus } from "@fortawesome/free-solid-svg-icons";
+import { isBlueskyBridgedHandle } from "@/lib/social/handles";
+import { BLUESKY_CARD_CLASSES, BlueskyAvatarBadge, BlueskyLabel } from "./BlueskyBadge";
 
 // --- Types ---
 interface PackAccount {
@@ -56,18 +58,25 @@ function SkeletonShare() {
 }
 
 function AccountCard({ a }: { a: PackAccount }) {
+    const bluesky = isBlueskyBridgedHandle(a.handle);
     return (
-        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+        <div className={`rounded-xl p-4 border ${bluesky ? BLUESKY_CARD_CLASSES : "bg-white/5 border-white/10"}`}>
             <div className="flex items-center gap-3 mb-2">
-                {a.avatar ? (
-                    <img src={a.avatar} alt={a.name} className="w-12 h-12 rounded-full object-cover shrink-0 bg-white/10" loading="lazy" />
-                ) : (
-                    <div className="w-12 h-12 rounded-full bg-[#31dcb2]/20 shrink-0 flex items-center justify-center text-[#31dcb2] text-lg font-bold">
-                        {(a.name || "@")[0].toUpperCase()}
-                    </div>
-                )}
+                <div className="relative shrink-0">
+                    {a.avatar ? (
+                        <img src={a.avatar} alt={a.name} className="w-12 h-12 rounded-full object-cover bg-white/10" loading="lazy" />
+                    ) : (
+                        <div className="w-12 h-12 rounded-full bg-[#31dcb2]/20 flex items-center justify-center text-[#31dcb2] text-lg font-bold">
+                            {(a.name || "@")[0].toUpperCase()}
+                        </div>
+                    )}
+                    {bluesky && <BlueskyAvatarBadge />}
+                </div>
                 <div className="min-w-0 flex-1">
-                    <p className="text-white font-semibold text-sm truncate">{a.name}</p>
+                    <div className="flex items-center gap-2 min-w-0">
+                        <p className="text-white font-semibold text-sm truncate">{a.name}</p>
+                        {bluesky && <BlueskyLabel />}
+                    </div>
                     <p className="text-white/50 text-xs truncate">{a.handle}</p>
                 </div>
             </div>

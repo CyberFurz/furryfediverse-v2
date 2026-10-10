@@ -4,11 +4,12 @@ import type { APIRoute } from "astro";
 import { prisma } from "../../../../../lib/prisma";
 import { requireUser } from "../../../../../lib/api-helpers";
 import {
+    getRemoteLookupScopeStatus,
     lookupRemoteAccount,
     searchRemoteAccounts,
     type RemoteAccount,
 } from "../../../../../lib/social/remote-accounts";
-import { normalizeHandle, isValidHandle, MAX_HANDLE_LENGTH } from "../../../../../lib/social/handles";
+import { normalizeHandle, isValidHandle, toBridgedBlueskyHandle, MAX_HANDLE_LENGTH } from "../../../../../lib/social/handles";
 
 export const GET: APIRoute = async ({ url, locals }) => {
     const { user, error: authError } = requireUser(locals);
@@ -79,7 +80,14 @@ export const GET: APIRoute = async ({ url, locals }) => {
         const remoteAccounts: RemoteAccount[] = [];
         const exactRemote = await lookupRemoteAccount(q, user.id);
         if (exactRemote) remoteAccounts.push(exactRemote);
-        else remoteAccounts.push(...(await searchRemoteAccounts(q, user.id)));
+        else {
+            // A bare Bluesky handle (alice.bsky.social) maps to its Bridgy
+            // Fed account (alice.bsky.social@bsky.brid.gy).
+            const bridged = toBridgedBlueskyHandle(q);
+            const bridgedRemote = bridged ? await lookupRemoteAccount(bridged, user.id) : null;
+            if (bridgedRemote) remoteAccounts.push(bridgedRemote);
+            else remoteAccounts.push(...(await searchRemoteAccounts(q, user.id)));
+        }
 
         const handleSet = new Set(handleAccounts.map((h) => h.handle));
         for (const ra of remoteAccounts) {
@@ -122,6 +130,7 @@ export const GET: APIRoute = async ({ url, locals }) => {
                 limit,
                 totalPages: Math.ceil(totalCount / limit),
                 packAccountCount: pack.numAccounts,
+                scopeStatus: await getRemoteLookupScopeStatus(user.id),
             }),
             { status: 200, headers: { "Content-Type": "application/json" } }
         );

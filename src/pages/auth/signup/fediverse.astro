@@ -1,6 +1,7 @@
 ---
 export const prerender = false;
 import Layout from "../../../layouts/Layout.astro";
+import ScopeDisclosure from "../../../components/ScopeDisclosure.astro";
 
 const user = Astro.locals.user;
 if (user) {
@@ -19,6 +20,8 @@ const connected = Astro.url.searchParams.get("connected") === "1";
 
         <div id="error-message" class="hidden bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg text-sm mb-4"></div>
         <div id="success-message" class="hidden bg-green-500/20 border border-green-500/50 text-green-300 px-4 py-3 rounded-lg text-sm mb-4"></div>
+
+        <div class:list={["mb-4", connected && "hidden"]}><ScopeDisclosure selectId="platform" collapsible /></div>
 
         <form id="connect-form" class:list={["space-y-4 mb-5", connected && "hidden"]}>
           <div>

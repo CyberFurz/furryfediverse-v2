@@ -1,4 +1,5 @@
 import generator, { detector } from "megalodon";
+import { requestedScopes } from "../scopes";
 
 export type PlatformKey = "mastodon" | "pleroma" | "pixelfed" | "firefish" | "gotosocial";
 
@@ -26,35 +27,32 @@ export const PROVIDERS: Record<PlatformKey, ProviderConfig> = {
   mastodon: {
     key: "mastodon",
     label: "Mastodon",
-    readScope: "profile",
+    readScope: requestedScopes("mastodon").join(" "),
     megalodonType: "mastodon",
   },
   pleroma: {
     key: "pleroma",
     label: "Pleroma / Akkoma",
-    readScope: "read:accounts",
+    readScope: requestedScopes("pleroma").join(" "),
     megalodonType: "pleroma",
   },
   pixelfed: {
     key: "pixelfed",
     label: "Pixelfed",
-    readScope: "read",
+    readScope: requestedScopes("pixelfed").join(" "),
     megalodonType: "pixelfed",
   },
   firefish: {
     key: "firefish",
     label: "Firefish / Iceshrimp",
-    readScope: "read:account",
+    readScope: requestedScopes("firefish").join(" "),
     megalodonType: "firefish",
   },
   gotosocial: {
     key: "gotosocial",
     label: "GoToSocial",
-    // "profile" alone is too narrow: account lookup (@user@domain in pack
-    // search) and the follow batch need read:accounts / read:search /
-    // write:follows. Megalodon joins the scope list with spaces when
-    // registering the app and building the authorize URL.
-    readScope: "profile read:accounts read:search write:follows",
+    // Base + extended scopes are defined in ../scopes.ts.
+    readScope: requestedScopes("gotosocial").join(" "),
     megalodonType: "gotosocial",
   },
 };

@@ -81,14 +81,18 @@ export const GET: APIRoute = async ({ url, cookies, redirect, request }) => {
   let isPrimaryNsfw: boolean;
   let clientId: string;
   let clientSecret: string;
-  let flow: "link" | "register" | "login";
+  let flow: "link" | "register" | "login" | "reauthorize";
+  let reauthProfileId: string | null = null;
+  let returnTo: string | null = null;
 
   type LinkStatePayload = {
     platform: PlatformKey;
     instanceDomain: string;
     userId: string | null;
     isPrimaryNsfw: boolean;
-    flow: "link" | "register" | "login";
+    flow: "link" | "register" | "login" | "reauthorize";
+    linkedProfileId?: string | null;
+    returnTo?: string | null;
     clientId: string;
     clientSecret: string;
   };
@@ -104,7 +108,12 @@ export const GET: APIRoute = async ({ url, cookies, redirect, request }) => {
     instanceDomain = statePayload.instanceDomain;
     userId = statePayload.userId;
     isPrimaryNsfw = Boolean(statePayload.isPrimaryNsfw);
-    flow = statePayload.flow === "register" ? "register" : statePayload.flow === "login" ? "login" : "link";
+    flow = statePayload.flow === "register" ? "register"
+      : statePayload.flow === "login" ? "login"
+      : statePayload.flow === "reauthorize" ? "reauthorize"
+      : "link";
+    reauthProfileId = statePayload.linkedProfileId ?? null;
+    returnTo = statePayload.returnTo ?? null;
     clientId = statePayload.clientId;
     clientSecret = statePayload.clientSecret;
 
@@ -129,6 +138,9 @@ export const GET: APIRoute = async ({ url, cookies, redirect, request }) => {
     );
 
     const accessToken = tokenData.access_token;
+    // Prefer what the server says it actually granted; fall back to what we asked for.
+    const grantedScope =
+      (tokenData as { scope?: string | null }).scope || provider.readScope;
 
     const profileClient = createMegalodonClient(platform, instanceDomain, accessToken);
     const accountRes = await profileClient.verifyAccountCredentials();
@@ -161,6 +173,30 @@ export const GET: APIRoute = async ({ url, cookies, redirect, request }) => {
       },
     });
 
+    if (flow === "reauthorize") {
+      const back = (q: string) => {
+        const base = returnTo || "/auth/links";
+        return `${base}${base.includes("?") ? "&" : "?"}${q}`;
+      };
+      // Must be the same fediverse account, owned by the same user.
+      if (!existing || !userId || existing.id !== reauthProfileId || existing.userId !== userId) {
+        return redirect(back("error=reauthorize_account_mismatch"));
+      }
+      await prisma.linkedProfile.update({
+        where: { id: existing.id },
+        data: {
+          accessToken,
+          refreshToken: tokenData.refresh_token ?? null,
+          tokenExpiresAt: tokenData.expires_in
+            ? new Date(Date.now() + tokenData.expires_in * 1000)
+            : null,
+          scope: grantedScope,
+          syncError: null,
+        },
+      });
+      return redirect(back("success=reauthorized"));
+    }
+
     if (existing && flow !== "login") {
       return redirect(flow === "register" ? "/auth/signup/fediverse?error=already_linked" : "/auth/links?error=already_linked");
     }
@@ -175,7 +211,7 @@ export const GET: APIRoute = async ({ url, cookies, redirect, request }) => {
         tokenExpiresAt: tokenData.expires_in
           ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
           : null,
-        scope: provider.readScope,
+        scope: grantedScope,
         username: account.username,
         acct: account.acct,
         displayName: account.display_name ?? null,
@@ -218,6 +254,20 @@ export const GET: APIRoute = async ({ url, cookies, redirect, request }) => {
       if (!linked?.user?.email) {
         return redirect("/auth/signup/fediverse?error=account_not_linked");
       }
+
+      // The user just approved our current scope set on their server; keep
+      // that token so they aren't asked to re-authorize separately.
+      await prisma.linkedProfile.update({
+        where: { id: linked.id },
+        data: {
+          accessToken,
+          refreshToken: tokenData.refresh_token ?? null,
+          tokenExpiresAt: tokenData.expires_in
+            ? new Date(Date.now() + tokenData.expires_in * 1000)
+            : null,
+          scope: grantedScope,
+        },
+      });
 
       const password = deriveFediversePassword({
         platform,
@@ -276,7 +326,7 @@ export const GET: APIRoute = async ({ url, cookies, redirect, request }) => {
         tokenExpiresAt: tokenData.expires_in
           ? new Date(Date.now() + tokenData.expires_in * 1000)
           : null,
-        scope: provider.readScope,
+        scope: grantedScope,
         username: account.username,
         acct: account.acct,
         displayName: account.display_name ?? null,

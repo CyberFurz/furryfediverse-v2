@@ -1,7 +1,9 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSpinner, faCheck, faMagnifyingGlass, faXmark } from "@fortawesome/free-solid-svg-icons";
-import type { RemoteAccount } from "@/lib/social/remote-accounts";
+import type { RemoteAccount, RemoteLookupScopeStatus } from "@/lib/social/remote-accounts";
+import { isBlueskyBridgedHandle } from "@/lib/social/handles";
+import { BLUESKY_CARD_CLASSES, BlueskyAvatarBadge, BlueskyLabel } from "./BlueskyBadge";
 
 // --- Types ---
 interface SearchResult {
@@ -29,6 +31,7 @@ interface SearchResponse {
   limit: number;
   totalPages: number;
   packAccountCount: number;
+  scopeStatus: RemoteLookupScopeStatus | null;
 }
 
 interface ToggleResponse {
@@ -68,6 +71,98 @@ function SearchSkeleton() {
   );
 }
 
+// --- Permissions banner ---
+function ScopeBanner({ status, slug }: { status: RemoteLookupScopeStatus | null; slug: string }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  if (!status) {
+    return (
+      <div className="p-4 bg-amber-500/10 border border-amber-400/40 rounded-xl text-sm">
+        <p className="text-amber-200 font-semibold mb-1">Link a fediverse account to search other servers</p>
+        <p className="text-amber-100/80 text-xs">
+          Searching for accounts on other servers (and Bluesky accounts bridged to the fediverse) runs through your own
+          fediverse account. <a href="/auth/links" className="text-[#31dcb2] underline">Link an account</a> to enable it.
+        </p>
+      </div>
+    );
+  }
+  if (status.missingScopes.length === 0) return null;
+
+  const reauthorize = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch("/api/auth/link/start", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ flow: "reauthorize", linkedProfileId: status.linkedProfileId, returnTo: `/packs/${slug}/accounts` }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Failed to start re-authorization");
+      window.location.href = d.authUrl;
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Something went wrong");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="p-4 bg-amber-500/10 border border-amber-400/40 rounded-xl">
+      <p className="text-amber-200 text-sm font-semibold mb-1">Re-authorize @{status.handle} to search other servers</p>
+      <p className="text-amber-100/80 text-xs mb-3">
+        Searching runs through your account on <strong>{status.instanceDomain}</strong>. It hasn't granted these permissions yet,
+        so accounts your server hasn't seen before (including bridged Bluesky accounts) won't show up:
+      </p>
+      <ul className="space-y-2 mb-3">
+        {status.missingScopes.map((m) => (
+          <li key={m.scope} className="text-xs">
+            <span className="text-white font-semibold">{m.label}</span>
+            <code className="ml-1 text-[10px] text-white/50 bg-white/10 px-1 py-0.5 rounded">{m.scope}</code>
+            <p className="text-white/70 mt-0.5">{m.purpose}</p>
+          </li>
+        ))}
+      </ul>
+      <p className="text-white/50 text-xs mb-3">
+        You'll approve this on {status.instanceDomain} and come right back here. We never post, read your messages, or change your profile.
+      </p>
+      <button onClick={reauthorize} disabled={busy}
+        className="text-xs bg-[#31dcb2] text-[#12384b] font-semibold hover:bg-[#28c4a0] disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors">
+        {busy ? "Redirecting..." : `Re-authorize on ${status.instanceDomain}`}
+      </button>
+      {err && <p className="text-red-400 text-xs mt-2">{err}</p>}
+    </div>
+  );
+}
+
+// --- Avatar / row helpers ---
+function RowAvatar({ src, name, bluesky }: { src?: string | null; name?: string | null; bluesky: boolean }) {
+  return (
+    <div className="relative shrink-0">
+      {src ? (
+        <img src={src} alt="" className="w-10 h-10 rounded-full object-cover bg-white/10" loading="lazy" />
+      ) : (
+        <div className="w-10 h-10 rounded-full bg-[#31dcb2]/20 flex items-center justify-center text-[#31dcb2] text-sm font-bold">
+          {(name || "@")[0].toUpperCase()}
+        </div>
+      )}
+      {bluesky && <BlueskyAvatarBadge />}
+    </div>
+  );
+}
+
+function RowName({ name, bluesky }: { name: string; bluesky: boolean }) {
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <p className="text-white font-semibold text-sm truncate">{name}</p>
+      {bluesky && <BlueskyLabel />}
+    </div>
+  );
+}
+
+const rowClasses = (bluesky: boolean) =>
+  `flex items-center gap-3 p-4 rounded-xl border transition-colors ${
+    bluesky ? BLUESKY_CARD_CLASSES : "bg-white/5 border-white/10 hover:border-white/20"
+  }`;
+
 // --- Account row ---
 function AccountRow({ a, toggling, status, onToggle }: {
   a: SearchResult; toggling: boolean; status: string | null; onToggle: () => void;
@@ -75,17 +170,12 @@ function AccountRow({ a, toggling, status, onToggle }: {
   const label = status === "adding" ? "Adding..." : status === "added" ? "Added"
     : status === "removing" ? "Removing..." : status === "removed" ? "Removed" : null;
 
+  const bluesky = isBlueskyBridgedHandle(a.handle);
   return (
-    <div className="flex items-center gap-3 p-4 bg-white/5 rounded-xl border border-white/10 hover:border-white/20 transition-colors">
-      {a.avatar ? (
-        <img src={a.avatar} alt="" className="w-10 h-10 rounded-full object-cover shrink-0 bg-white/10" loading="lazy" />
-      ) : (
-        <div className="w-10 h-10 rounded-full bg-[#31dcb2]/20 shrink-0 flex items-center justify-center text-[#31dcb2] text-sm font-bold">
-          {(a.displayName || "@")[0].toUpperCase()}
-        </div>
-      )}
+    <div className={rowClasses(bluesky)}>
+      <RowAvatar src={a.avatar} name={a.displayName} bluesky={bluesky} />
       <div className="min-w-0 flex-1">
-        <p className="text-white font-semibold text-sm truncate">{a.displayName || a.handle}</p>
+        <RowName name={a.displayName || a.handle} bluesky={bluesky} />
         <p className="text-white/50 text-xs truncate">{a.handle}</p>
       </div>
       <div className="text-xs text-white/40 shrink-0 text-right min-w-[60px]">{a.followersCount.toLocaleString()} followers</div>
@@ -127,6 +217,20 @@ export default function PackAccounts({ slug }: { slug: string }) {
   const [remoteAccounts, setRemoteAccounts] = useState<RemoteAccount[]>([]);
   const [toggling, setToggling] = useState<Record<string, boolean>>({});
   const [statuses, setStatuses] = useState<Record<string, "added" | "removed">>({});
+  const [scopeStatus, setScopeStatus] = useState<RemoteLookupScopeStatus | null | undefined>(undefined);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // Result of returning from a re-authorization redirect
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("success") === "reauthorized") setNotice("Permissions updated. You can now search accounts on other servers, including bridged Bluesky accounts.");
+    else if (sp.get("error") === "reauthorize_account_mismatch") setError("Re-authorization failed: you approved a different account than the one linked here. Sign in as that account on your server and try again.");
+    if (sp.has("success") || sp.has("error")) {
+      sp.delete("success"); sp.delete("error");
+      const qs = sp.toString();
+      window.history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    }
+  }, []);
 
   // Fetch actual pack count and handle accounts on mount
   const refreshPackData = useCallback(async () => {
@@ -139,6 +243,7 @@ export default function PackAccounts({ slug }: { slug: string }) {
       if (packData.numAccounts !== undefined) setTotalInPack(packData.numAccounts);
       const acctsData = await acctsRes.json();
       setHandleAccounts(acctsData.handleAccounts || []);
+      if ("scopeStatus" in acctsData) setScopeStatus(acctsData.scopeStatus);
     } catch { /* ignore */ }
   }, [slug]);
 
@@ -161,6 +266,7 @@ export default function PackAccounts({ slug }: { slug: string }) {
       setResults(d.accounts || []);
       setHandleAccounts(d.handleAccounts || []);
       setRemoteAccounts(d.remoteAccounts || []);
+      if ("scopeStatus" in d) setScopeStatus(d.scopeStatus);
       setTotalCount(d.totalCount);
       setTotalPages(d.totalPages);
       setPage(pg);
@@ -278,12 +384,15 @@ export default function PackAccounts({ slug }: { slug: string }) {
         )}
       </div>
 
+      {notice && <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-300 text-sm">{notice}</div>}
+      {scopeStatus !== undefined && <ScopeBanner status={scopeStatus} slug={slug} />}
+
       {/* Search */}
       <div>
         <div className="relative">
           {searchIcon}
           <input type="text" value={query} onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by @user@instance or display name..."
+            placeholder="Search by @user@instance, Bluesky handle, or display name..."
             className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[#31dcb2] focus:ring-1 focus:ring-[#31dcb2] transition-colors" />
         </div>
         {debounced && <p className="text-xs text-white/40 mt-2">{loading ? "Searching..." : `${totalCount} result${totalCount !== 1 ? "s" : ""} found`}</p>}
@@ -301,11 +410,14 @@ export default function PackAccounts({ slug }: { slug: string }) {
           {emptyIcon}
           <p className="text-white/50 text-lg mb-1">Search for accounts to add...</p>
           <p className="text-white/30 text-sm">Type a fediverse handle or display name to find accounts</p>
+          <p className="text-white/30 text-xs mt-2">
+            Bluesky accounts bridged via Bridgy Fed can be added too — enter their Bluesky handle (e.g. alice.bsky.social).
+          </p>
         </div>
       )}
 
       {/* Empty results */}
-      {!loading && searched && results.length === 0 && (
+      {!loading && searched && results.length === 0 && remoteAccounts.length === 0 && (
         <div className="text-center py-16 bg-white/5 rounded-xl border border-white/10">
           <p className="text-white/50 text-lg mb-1">No results</p>
           <p className="text-white/30 text-sm">Try a different search term or check the spelling</p>
@@ -343,17 +455,13 @@ export default function PackAccounts({ slug }: { slug: string }) {
           </h3>
           {remoteAccounts
             .filter((ra) => !results.some((r) => r.handle === ra.handle))
-            .map((remoteAccount) => (
-              <div key={remoteAccount.handle} className="flex items-center gap-3 p-4 bg-white/5 rounded-xl border border-white/10 hover:border-white/20 transition-colors">
-                {remoteAccount.avatar ? (
-                  <img src={remoteAccount.avatar} alt="" className="w-10 h-10 rounded-full object-cover shrink-0 bg-white/10" loading="lazy" />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-[#31dcb2]/20 shrink-0 flex items-center justify-center text-[#31dcb2] text-sm font-bold">
-                    {(remoteAccount.displayName || "@")[0].toUpperCase()}
-                  </div>
-                )}
+            .map((remoteAccount) => {
+              const bluesky = isBlueskyBridgedHandle(remoteAccount.handle);
+              return (
+              <div key={remoteAccount.handle} className={rowClasses(bluesky)}>
+                <RowAvatar src={remoteAccount.avatar} name={remoteAccount.displayName} bluesky={bluesky} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-white font-semibold text-sm truncate">{remoteAccount.displayName}</p>
+                  <RowName name={remoteAccount.displayName || remoteAccount.handle} bluesky={bluesky} />
                   <p className="text-white/50 text-xs truncate">@{remoteAccount.handle}</p>
                 </div>
                 <div className="text-xs text-white/40 shrink-0 text-right min-w-[60px]">
@@ -372,7 +480,8 @@ export default function PackAccounts({ slug }: { slug: string }) {
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
         </div>
       )}
 
@@ -382,17 +491,13 @@ export default function PackAccounts({ slug }: { slug: string }) {
           <h3 className="text-sm font-medium text-white/60 uppercase tracking-wider">
             Handle-based accounts ({handleAccounts.length})
           </h3>
-          {handleAccounts.map((acct) => (
-            <div key={acct.handle} className="flex items-center gap-3 p-4 bg-white/5 rounded-xl border border-white/10 hover:border-white/20 transition-colors">
-              {acct.avatarUrl ? (
-                <img src={acct.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover shrink-0 bg-white/10" loading="lazy" />
-              ) : (
-                <div className="w-10 h-10 rounded-full bg-[#31dcb2]/20 shrink-0 flex items-center justify-center text-[#31dcb2] text-sm font-bold">
-                  {(acct.displayName || "@")[0].toUpperCase()}
-                </div>
-              )}
+          {handleAccounts.map((acct) => {
+            const bluesky = isBlueskyBridgedHandle(acct.handle);
+            return (
+            <div key={acct.handle} className={rowClasses(bluesky)}>
+              <RowAvatar src={acct.avatarUrl} name={acct.displayName} bluesky={bluesky} />
               <div className="min-w-0 flex-1">
-                <p className="text-white font-semibold text-sm truncate">{acct.displayName || acct.handle}</p>
+                <RowName name={acct.displayName || acct.handle} bluesky={bluesky} />
                 <p className="text-white/50 text-xs truncate">@{acct.handle}</p>
               </div>
               <button onClick={() => handleRemoveHandle(acct)} disabled={!!toggling[acct.handle]}
@@ -404,7 +509,8 @@ export default function PackAccounts({ slug }: { slug: string }) {
                 )}
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

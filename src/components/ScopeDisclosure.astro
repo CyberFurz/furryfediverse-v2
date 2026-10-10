@@ -1,0 +1,93 @@
+---
+/**
+ * Pre-redirect permissions disclosure. Lists every OAuth scope we will ask the
+ * user's server for, per platform, with a plain-language reason. The visible
+ * list follows the platform <select> identified by `selectId`.
+ *
+ * `collapsible` renders it as an amber warning box that expands on click
+ * (used on sign in / sign up); otherwise it's an always-open panel.
+ */
+import { requestedScopes, SCOPE_INFO, type ScopePlatform } from "../lib/social/scopes";
+
+interface Props {
+  selectId?: string;
+  collapsible?: boolean;
+}
+const { selectId = "platform", collapsible = false } = Astro.props;
+
+const platforms: ScopePlatform[] = ["mastodon", "pleroma", "pixelfed", "firefish", "gotosocial"];
+
+const PROFILE_ITEM = {
+  label: "Read your profile",
+  purpose:
+    "Your name, avatar, header, bio and follower counts, so we can confirm it's you and show your profile in the directory if you choose to list it.",
+};
+
+function itemsFor(platform: ScopePlatform) {
+  const scopes = requestedScopes(platform);
+  const extended = scopes.filter((s) => SCOPE_INFO[s]);
+  const base = scopes.filter((s) => !SCOPE_INFO[s]);
+  return [
+    { ...PROFILE_ITEM, scopes: base.length ? base : [extended[0]].filter(Boolean) },
+    ...extended.map((s) => ({ label: SCOPE_INFO[s].label, purpose: SCOPE_INFO[s].purpose, scopes: [s] })),
+  ];
+}
+---
+
+<details
+  class:list={[
+    "scope-disclosure group rounded-lg text-left",
+    collapsible ? "bg-amber-500/10 border border-amber-400/40" : "bg-white/5 border border-white/15",
+  ]}
+  data-select-id={selectId}
+  open={!collapsible}
+>
+  <summary
+    class:list={[
+      "flex items-center gap-2 list-none select-none px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden",
+      collapsible ? "cursor-pointer text-amber-200" : "pointer-events-none text-white",
+    ]}
+  >
+    {collapsible && <i class="fa-solid fa-triangle-exclamation text-amber-300" aria-hidden="true"></i>}
+    <span class="flex-1">{collapsible ? "Explaining the permissions we ask for" : "What we'll ask your server for"}</span>
+    {collapsible && (
+      <i class="fa-solid fa-chevron-down text-amber-300 text-xs transition-transform group-open:rotate-180" aria-hidden="true"></i>
+    )}
+  </summary>
+  <div class="px-4 pb-4">
+    <p class="text-white/60 text-xs mb-3">
+      You'll be sent to your server to approve these permissions, then brought back here.
+    </p>
+    {platforms.map((p, i) => (
+      <ul class:list={["space-y-2", i !== 0 && "hidden"]} data-platform={p}>
+        {itemsFor(p).map((item) => (
+          <li class="text-xs">
+            <span class="text-white font-semibold">{item.label}</span>
+            {item.scopes.map((s) => (
+              <code class="ml-1 text-[10px] text-white/50 bg-white/10 px-1 py-0.5 rounded">{s}</code>
+            ))}
+            <p class="text-white/70 mt-0.5">{item.purpose}</p>
+          </li>
+        ))}
+      </ul>
+    ))}
+    <p class="text-white/50 text-xs mt-3">
+      We never post for you, read your posts or direct messages, or change your profile. You can revoke access at any
+      time from your server's settings (usually under “Authorized apps”).
+    </p>
+  </div>
+</details>
+
+<script>
+  document.querySelectorAll<HTMLElement>(".scope-disclosure").forEach((box) => {
+    const select = document.getElementById(box.dataset.selectId || "platform") as HTMLSelectElement | null;
+    const sync = () => {
+      const current = select?.value || "mastodon";
+      box.querySelectorAll<HTMLElement>("[data-platform]").forEach((ul) => {
+        ul.classList.toggle("hidden", ul.dataset.platform !== current);
+      });
+    };
+    select?.addEventListener("change", sync);
+    sync();
+  });
+</script>

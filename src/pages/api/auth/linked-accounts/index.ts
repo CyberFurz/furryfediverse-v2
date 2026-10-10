@@ -2,6 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from "astro";
 import { prisma } from "../../../../lib/prisma";
+import { describeScopes, missingScopes } from "../../../../lib/social/scopes";
 
 export const GET: APIRoute = async ({ locals }) => {
   const user = locals.user;
@@ -37,6 +38,8 @@ export const GET: APIRoute = async ({ locals }) => {
     isPrimaryNsfw: p.isPrimaryNsfw,
     isPrimaryProfile: p.isPrimaryProfile,
     createdAt: p.createdAt,
+    // Extended starter-pack permissions this account has not granted yet.
+    missingScopes: describeScopes(missingScopes(p.platform, p.scope)),
     hashtags: p.hashtags.map((h) => ({ id: h.id, tag: h.tag, normalizedTag: h.normalizedTag })),
   }));
 

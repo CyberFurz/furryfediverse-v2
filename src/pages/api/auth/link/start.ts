@@ -4,6 +4,7 @@ import type { APIRoute } from "astro";
 import { PROVIDERS, type PlatformKey } from "../../../../lib/social/providers";
 import generator from "megalodon";
 import { createAuthFlowState } from "../../../../lib/auth-flow-state";
+import { prisma } from "../../../../lib/prisma";
 
 const SITE_URL = process.env.SITE_URL || "http://localhost:4321";
 const CLIENT_NAME = "FurryFediverse";
@@ -13,10 +14,48 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
 
   try {
     const body = await request.json();
-    const { platform, instanceDomain, isPrimaryNsfw, flow } = body;
-    const authFlow = flow === "register" ? "register" : flow === "login" ? "login" : "link";
+    let { platform, instanceDomain } = body;
+    const { isPrimaryNsfw, flow, linkedProfileId, returnTo } = body;
+    const authFlow =
+      flow === "register" ? "register"
+        : flow === "login" ? "login"
+        : flow === "reauthorize" ? "reauthorize"
+        : "link";
 
-    if (authFlow === "link" && !user) {
+    // Re-authorize an existing linked account to grant updated scopes.
+    // Platform/instance come from the stored profile, never the client.
+    let reauthProfileId: string | null = null;
+    if (authFlow === "reauthorize") {
+      if (!user) {
+        return new Response(
+          JSON.stringify({ error: "Authentication required" }),
+          { status: 401, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      const profile = typeof linkedProfileId === "string"
+        ? await prisma.linkedProfile.findFirst({
+            where: { id: linkedProfileId, userId: user.id },
+            select: { id: true, platform: true, instanceDomain: true },
+          })
+        : null;
+      if (!profile) {
+        return new Response(
+          JSON.stringify({ error: "Linked account not found" }),
+          { status: 404, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      platform = profile.platform;
+      instanceDomain = profile.instanceDomain;
+      reauthProfileId = profile.id;
+    }
+
+    // Only allow same-site relative return paths.
+    const safeReturnTo =
+      typeof returnTo === "string" && returnTo.startsWith("/") && !returnTo.startsWith("//")
+        ? returnTo
+        : null;
+
+    if ((authFlow === "link" || authFlow === "reauthorize") && !user) {
       return new Response(
         JSON.stringify({ error: "Authentication required" }),
         { status: 401, headers: { "Content-Type": "application/json" } }
@@ -54,6 +93,8 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       userId: user?.id ?? null,
       isPrimaryNsfw: Boolean(isPrimaryNsfw),
       flow: authFlow,
+      linkedProfileId: reauthProfileId,
+      returnTo: safeReturnTo,
       clientId: appData.client_id,
       clientSecret: appData.client_secret,
     }, 10 * 60);

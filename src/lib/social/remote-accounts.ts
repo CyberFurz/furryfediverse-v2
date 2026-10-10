@@ -1,7 +1,8 @@
 import { prisma } from "../prisma";
 import generator from "megalodon";
 import type { PlatformKey } from "./providers";
-import { buildHandle, normalizeHandle } from "./handles";
+import { buildHandle, canonicalHandle, normalizeHandle } from "./handles";
+import { describeScopes, missingScopes, type ScopeInfo } from "./scopes";
 
 /**
  * Remote fediverse account operations: exact lookup, partial search, and
@@ -54,13 +55,39 @@ export function normalizeRemoteAccount(
   };
 }
 
-/** Get the caller's linked profile used for remote lookups. */
+/**
+ * Get the caller's linked profile used for remote lookups. Not filtered on
+ * isActive: that flag controls directory listing, and a user who hides their
+ * profile from the directory should still be able to search from it.
+ */
 async function getLinkedProfileForRemote(userId: string) {
   return prisma.linkedProfile.findFirst({
-    where: { userId, isActive: true },
-    orderBy: { isPrimaryProfile: "desc" },
-    select: { instanceDomain: true, platform: true, accessToken: true },
+    where: { userId },
+    orderBy: [{ isPrimaryProfile: "desc" }, { createdAt: "asc" }],
+    select: { id: true, acct: true, instanceDomain: true, platform: true, accessToken: true, scope: true },
   });
+}
+
+export interface RemoteLookupScopeStatus {
+  linkedProfileId: string;
+  handle: string;
+  instanceDomain: string;
+  missingScopes: ScopeInfo[];
+}
+
+/**
+ * Which linked account pack search runs through, and which extended
+ * permissions it is still missing. Null when the user has no linked account.
+ */
+export async function getRemoteLookupScopeStatus(userId: string): Promise<RemoteLookupScopeStatus | null> {
+  const p = await getLinkedProfileForRemote(userId);
+  if (!p) return null;
+  return {
+    linkedProfileId: p.id,
+    handle: buildHandle(p.acct, p.instanceDomain),
+    instanceDomain: p.instanceDomain,
+    missingScopes: describeScopes(missingScopes(p.platform, p.scope)),
+  };
 }
 
 /** Look up one exact @user@instance handle on the caller's home instance. */
@@ -71,16 +98,32 @@ export async function lookupRemoteAccount(q: string, userId: string): Promise<Re
   const userProfile = await getLinkedProfileForRemote(userId);
   if (!userProfile) return null;
 
+  const client = generator(
+    userProfile.platform as PlatformKey,
+    `https://${userProfile.instanceDomain}`,
+    userProfile.accessToken,
+  );
+
+  // 1) Fast path: accounts the home instance already knows about.
   try {
-    const client = generator(
-      userProfile.platform as PlatformKey,
-      `https://${userProfile.instanceDomain}`,
-      userProfile.accessToken,
-    );
     const result = await client.lookupAccount(fullAcct);
-    return normalizeRemoteAccount(result.data as Record<string, unknown>, userProfile.instanceDomain);
+    const found = normalizeRemoteAccount(result.data as Record<string, unknown>, userProfile.instanceDomain);
+    if (found) return found;
   } catch {
-    // Remote lookup failed, continue with local search only
+    // Not known locally (e.g. a bridged Bluesky account nobody here follows yet)
+  }
+
+  // 2) Resolve via WebFinger: search with resolve=true makes the home
+  //    instance fetch the remote account if it hasn't seen it before.
+  try {
+    const wanted = canonicalHandle(normalizeHandle(fullAcct));
+    const result = await client.search(fullAcct, { type: "accounts", resolve: true, limit: 5 });
+    const accounts = (result.data.accounts || [])
+      .map((a) => normalizeRemoteAccount(a as Record<string, unknown>, userProfile.instanceDomain))
+      .filter((a): a is RemoteAccount => a !== null);
+    return accounts.find((a) => canonicalHandle(a.handle) === wanted) ?? null;
+  } catch (err) {
+    console.warn(`Remote resolve failed for ${fullAcct}:`, err instanceof Error ? err.message : err);
     return null;
   }
 }
